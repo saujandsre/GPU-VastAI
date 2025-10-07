@@ -1,0 +1,91 @@
+#Update and prep the system, swap must be disable for kubelet to work properly
+
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y apt-transport-https ca-certificates curl gpg
+
+sudo swapoff -a
+sudo sed -i '/ swap / s/^/#/' /etc/fstab
+
+
+
+
+
+
+#Install container runtime (containerd)
+sudo apt install -y containerd
+sudo mkdir -p /etc/containerd
+containerd config default | sudo tee /etc/containerd/config.toml > /dev/null
+
+#Edit the config to enable systemd cgroup driver:
+sudo vim /etc/containerd/config/toml
+
+
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+  SystemdCgroup = true
+
+
+#Restart
+
+sudo systemctl restart containerd
+sudo systemctl enable containerd
+
+
+
+#Add k8s Repo
+sudo curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | \
+  sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
+  https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /" | \
+  sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+sudo apt update
+
+
+
+#Install kubelet, kudeadm, kubectl 
+sudo apt install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
+
+
+
+#Initialize K8s (Single-node-cluster)
+sudo kubeadm init --pod-network-cidr=10.244.0.0/16
+
+
+Save the join line for later. 
+
+
+#Configure kubectl for user
+
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+
+
+#Install CNI 
+kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+
+#Allow scheduling on control plane
+kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+
+
+# NVIDIA Helm repo
+helm repo add nvidia https://nvidia.github.io/gpu-operator
+helm repo update
+
+# Install operator (creates drivers, toolkit, device-plugin, DCGM, CDI, etc.)
+helm install gpu-operator nvidia/gpu-operator --namespace gpu-operator \
+  --create-namespace
+
+
+#Confirm Node advertises GPU
+kubectl describe node | grep -A5 "Allocatable"
+
+
+
+
+
+
+

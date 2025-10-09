@@ -33,6 +33,7 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 # 5. Deploy Calico CNI (run only on control plane)
 echo "🌐 Installing Calico CNI..."
 kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+kubectl taint node ubuntu node-role.kubernetes.io/control-plane-
 
 echo "✅ Control Plane setup complete!"
 echo "👉 Use the kubeadm join command below (shown at the end of kubeadm init) on worker nodes."

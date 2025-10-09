@@ -27,11 +27,19 @@ systemctl enable containerd
 
 # 7. Add Kubernetes repo and key
 # Add Kubernetes latest stable repo (auto-updates when new versions release)
-curl -fsSL https://pkgs.k8s.io/core:/stable:/latest/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-archive-keyring.gpg
 
-echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://pkgs.k8s.io/core:/stable:/latest/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
+# Remove old list if present
+sudo rm -f /etc/apt/sources.list.d/kubernetes.list
 
-# 8. Update and install kubelet, kubeadm, kubectl
+sudo mkdir -p -m 755 /etc/apt/keyrings
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' \
+  | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+
+
 apt update -y
 apt install -y kubelet kubeadm kubectl
 

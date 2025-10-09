@@ -7,7 +7,7 @@ set -e  # stop if any script fails
 
 # Required scripts (edit names here if yours differ)
 SCRIPTS=(
-  "prechecks.sh"
+  "preChecks.sh"
   "control_node.sh"
   "gpu_node.sh"
   "monitoring.sh"

@@ -1,16 +1,18 @@
+# dcgm-servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: dcgm-exporter
-  namespace: default
-  labels:
-    release: prometheus
+  namespace: monitoring
 spec:
+  namespaceSelector:
+    matchnames:
+      - default
   selector:
     matchLabels:
-      app: nvidia-dcgm-exporter     # <-- changed to match your Service
-  namespaceSelector:
-    matchNames: [default]
+      app: nvidia-dcgm-exporter
   endpoints:
-    - port: gpu-metrics             # your Service port name
+    - ports: gpu-metrics
+      path: /metrics
       interval: 15s
+      scheme: http

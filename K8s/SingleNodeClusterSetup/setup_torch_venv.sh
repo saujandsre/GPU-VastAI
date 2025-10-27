@@ -1,13 +1,38 @@
 #!/usr/bin/env bash
-ENV_NAME="${1:-venv}"
+# Simple one-shot venv setup for your lab.
+# Creates ~/venvs/aml-gpu and installs Torch (CUDA 12.4) + HF tools.
 
-python3 -m pip --version >/dev/null 2>&1 || python3 -m ensurepip --upgrade
-python3 -m venv "$ENV_NAME"
-. "$ENV_NAME/bin/activate"
-pip install -U pip
+set -e
 
-pip install --index-url https://download.pytorch.org/whl/cu124 torch torchvision torchaudio
+ENV_DIR="$HOME/venvs/aml-gpu"
 
-python -c 'import torch; print("torch", torch.__version__, "cuda?", torch.cuda.is_available())'
-echo "Activate later with: source $ENV_NAME/bin/activate"
+echo "[+] Creating venv at: $ENV_DIR"
+mkdir -p "$(dirname "$ENV_DIR")"
+python3 -m venv "$ENV_DIR"
+
+echo "[+] Activating venv"
+# shellcheck disable=SC1090
+source "$ENV_DIR/bin/activate"
+
+echo "[+] Upgrading pip"
+python -m pip install -U pip
+
+echo "[+] Installing PyTorch (CUDA 12.4 runtime wheels)"
+python -m pip install --index-url https://download.pytorch.org/whl/cu124 \
+  torch torchvision torchaudio
+
+echo "[+] Installing Hugging Face tooling"
+python -m pip install -U transformers accelerate safetensors sentencepiece huggingface_hub
+
+echo "[+] Verifying"
+python - <<'PY'
+import torch
+print("torch:", torch.__version__, "| cuda:", torch.version.cuda, "| gpu?", torch.cuda.is_available())
+if torch.cuda.is_available():
+    print("gpu[0]:", torch.cuda.get_device_name(0))
+PY
+
+echo
+echo "[✓] Done. To use this env in any new shell:"
+echo "    source $ENV_DIR/bin/activate"
 

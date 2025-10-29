@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  spec:
+    replicas: 1
+    selector:
+      matchlabels:
+        app: gpt2-infer
+    template:
+      metadata:
+        labels:
+          app: gpt2-infer
+      spec:
+        containers:
+          - name: api
+            image: saujandsre/gpt2-svc:v1
+            ports:
+              - containerPort: 8000
+            resources:
+              limits:
+                nvidia.com/gpu: 1
+            volumeMounts:
+              - name: model-vol
+                mountPath: /app/modesl/gpt2
+                readonly: true
+        volumes: 
+          - name: model-vol
+            hostPath:
+              path: /mnt/models/gpt2
+              type: Directory
+---
+
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpt2-svc
+spec:
+  selector:
+    app: gpt2-infer
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
+
+

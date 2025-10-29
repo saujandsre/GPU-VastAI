@@ -1,8 +1,0 @@
-# Start in background and keep logs
-nohup kubectl -n monitoring port-forward svc/prometheus-grafana 3000:80 \
-  >/tmp/grafana.pf.log 2>&1 &
-
-
-
-
-

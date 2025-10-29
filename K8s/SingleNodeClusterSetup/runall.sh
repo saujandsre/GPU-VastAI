@@ -69,17 +69,7 @@ echo "ℹ️  From your laptop, open an SSH tunnel to Grafana then browse:"
 echo "    ssh -p <SSH_PORT> -N -L 3000:localhost:80 <user>@<public_ip>"
 echo "    → http://localhost:3000"
 
-# Print a tiny venv how-to (even if the torch setup ran)
-cat <<'EOF'
+#Creating the servicemonitor for DCGM exports
+kubectl apply -f serviceMonitorGPU.yml
 
-— Python venv quick start —
-Create a new environment named "torch":
-  python3 -m venv ~/venvs/torch
-
-Activate it:
-  source ~/venvs/torch/bin/activate
-
-Deactivate when done:
-  deactivate
-EOF
 

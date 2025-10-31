@@ -1,0 +1,1 @@
+hf download openai-community/gpt2 --local-dir /mnt/models/gpt2

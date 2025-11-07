@@ -1,14 +1,8 @@
-curl -s http://127.0.0.1:9000/v1/chat/completions \
- -H "Content-Type: application/json" \
- -d '{
-   "model":"Qwen/Qwen2.5-3B-Instruct",
-   "messages":[{"role":"user","content":"What is the job of a SRE ?"}],
-   "max_tokens":48
- }' | jq -r '.choices[0].message.content'
+# forward local:8000 -> service:8000
+kubectl port-forward svc/hf-infer-svc 8000:8000
 
-
-
-
-
-
+# in another shell:
+curl -s -X POST http://127.0.0.1:8000/predict \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"Say hello from the HF container.","max_tokens":40}'
 

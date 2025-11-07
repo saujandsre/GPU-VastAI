@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hf-config
+data:
+  MODEL_PATH: "Qwen/Qwen3-4B-Instruct-2507"   # change to any public HF model id
+

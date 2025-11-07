@@ -1,4 +1,3 @@
-# app/main.py
 from fastapi import FastAPI
 from pydantic import BaseModel
 import torch
@@ -13,7 +12,8 @@ class Prompt(BaseModel):
 
 @app.post("/predict")
 def predict(prompt: Prompt):
-    inputs = tokenizer(prompt.text, return_tensors="pt").to(model.device)
+    device = next(iter(model.parameters())).device
+    inputs = tokenizer(prompt.text, return_tensors="pt").to(device)
     with torch.no_grad():
         outputs = model.generate(
             **inputs,

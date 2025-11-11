@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm
+  template:
+    metadata:
+      labels:
+        app: vllm
+    spec:
+      containers:
+        - name: vllm
+          image: saujandsre/vllm-generic:v1
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: vllm-config
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - name: hf-cache
+              mountPath: /models
+      volumes:
+        - name: hf-cache
+          hostPath:
+            path: /var/lib/vllm-models   # created if missing
+            type: DirectoryOrCreate

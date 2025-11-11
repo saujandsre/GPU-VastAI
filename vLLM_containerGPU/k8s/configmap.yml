@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vllm-config
+data:
+  # Model to serve (HF repo or local path)
+  MODEL_ID: "Qwen/Qwen2.5-3B-Instruct"
+  # Precision: auto | fp16 | bf16  (bf16 only on Ampere/RTX30+)
+  DTYPE: "bf16"
+  # Fraction of total GPU VRAM vLLM may use (weights + KV + runtime)
+  GPU_MEMORY_UTILIZATION: "0.90"
+  # Max tokens per request (prompt + generated). Bigger => more KV per request => less concurrency.
+  MAX_MODEL_LEN: "8192"
+  # >1 only if the pod has multiple GPUs and you want to shard the model
+  TENSOR_PARALLEL_SIZE: "1"
+  # Where vLLM/HF will cache/download the model (must match the mountPath below)
+  DOWNLOAD_DIR: "/models"

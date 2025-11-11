@@ -1,7 +1,7 @@
-apiVersion: v1
+piVersion: v1
 kind: Service
 metadata:
-  name: vllm
+  name: vllmi-api
 spec:
   selector:
     app: vllm

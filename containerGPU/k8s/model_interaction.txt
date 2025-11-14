@@ -12,4 +12,12 @@ curl -s -o >(jq -r '.output') -w '\nTOTAL=%{time_total}s\n' \
   -H 'Content-Type: application/json' \
   -d '{"text":"List 30 cities:","max_tokens":200}'
 
+curl -s -o /tmp/hf_resp.json -w '%{time_total}\n' \
+  http://127.0.0.1:8000/predict \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"List 30 cities:","max_tokens":200}' \
+| { read TOTAL; \
+    jq -r '.output' /tmp/hf_resp.json; \
+    echo "TOTAL=${TOTAL}s"; \
+  }
 

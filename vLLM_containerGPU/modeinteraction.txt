@@ -1,0 +1,23 @@
+kubectl port-forward svc/vllmi-api 8000:8000 &
+
+
+curl -s http://localhost:8000/v1/models | jq
+
+
+
+curl -s -o /tmp/resp.json -w '%{time_total}\n' \
+  http://localhost:8000/v1/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Qwen/Qwen2.5-3B-Instruct","prompt":"List 30 cities:","max_tokens":200}' \
+| { read TOTAL; jq -r '.choices[0].text' /tmp/resp.json; \
+    TOK=$(jq '.usage.total_tokens' /tmp/resp.json); \
+    python3 - <<EOF
+t=float("$TOTAL"); tok=int("$TOK"); print(f"TOTAL={t:.3f}s RATE={tok/t:.1f} tok/s")
+EOF
+  }
+
+
+
+
+TOTAL=5.319s RATE=38.7 tok/s
+

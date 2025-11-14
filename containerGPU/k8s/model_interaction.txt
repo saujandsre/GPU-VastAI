@@ -6,3 +6,10 @@ curl -s -X POST http://127.0.0.1:8000/predict \
   -H 'Content-Type: application/json' \
   -d '{"text":"Say hello from the HF container.","max_tokens":40}'
 
+
+curl -s -o >(jq -r '.output') -w '\nTOTAL=%{time_total}s\n' \
+  http://127.0.0.1:8000/predict \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"List 30 cities:","max_tokens":200}'
+
+

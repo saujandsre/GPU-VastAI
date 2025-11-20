@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: dcgm-exporter
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - default        # namespace where the *Service* lives
+  selector:
+    matchLabels:
+      app: nvidia-dcgm-exporter  # must match labels on the Service (not the Pod)
+  endpoints:
+    - port: gpu-metrics          # must match the *Service* port name
+      path: /metrics
+      interval: 15s
+      scheme: http
+

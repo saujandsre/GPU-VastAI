@@ -1,74 +1,156 @@
-import os
-import time
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>vLLM Chat UI</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div>
+        <h1>vLLM Chat</h1>
+       </div>
+    </header>
 
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-import httpx
+    <main class="app-main">
+      <!-- Left: Prompt -->
+      <section class="panel">
+        <h2 class="panel-title">Prompt</h2>
 
-# ---------- Config ----------
-VLLM_URL = os.environ.get("VLLM_URL", "http://127.0.0.1:8000")
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-3B-Instruct")
+        <form id="chat-form" class="prompt-form">
+          <textarea
+            id="prompt"
+            placeholder="Ask the model anything…"
+            rows="6"
+          ></textarea>
 
-print(">>> VLLM_URL:", VLLM_URL)
-print(">>> MODEL_NAME:", MODEL_NAME)
+          <div class="form-footer">
+            <button id="send-btn" type="submit">Send</button>
+            <span id="status" class="status-text"></span>
+          </div>
+        </form>
+      </section>
 
-# ---------- App setup ----------
-app = FastAPI()
+      <!-- Right: Response + metrics -->
+      <section class="panel">
+        <h2 class="panel-title">Response</h2>
 
-# Static files and templates (relative to this file's directory)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+        <div class="response-box">
+          <div id="response-placeholder" class="placeholder">
+            The model’s reply will appear here.
+          </div>
+          <div id="response" class="response-text" style="display:none;"></div>
+          <div id="error" class="error-text" style="display:none;"></div>
+        </div>
 
+        <div class="metrics">
+          <h3 class="metrics-title">Request metrics</h3>
+          <div class="metrics-grid">
+            <div class="metric">
+              <span class="metric-label">Latency</span>
+              <span class="metric-value">
+                <span id="latency">–</span> s
+              </span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Prompt tokens</span>
+              <span id="prompt_tokens" class="metric-value">–</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Completion tokens</span>
+              <span id="completion_tokens" class="metric-value">–</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Total tokens</span>
+              <span id="total_tokens" class="metric-value">–</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
 
-# ---------- Routes ----------
-@app.get("/", response_class=HTMLResponse)
-async def get_ui(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    <footer class="app-footer">
+      vLLM demo • single-turn chat • latency + token usage
+    </footer>
+  </div>
 
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const form = document.getElementById("chat-form");
+      const promptEl = document.getElementById("prompt");
+      const sendBtn = document.getElementById("send-btn");
+      const statusEl = document.getElementById("status");
 
-@app.post("/api/generate")
-async def generate(prompt: str = Form(...)):
-    """Proxy prompt to vLLM and return text + stats."""
-    payload = {
-        "model": MODEL_NAME,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 512,
-        "temperature": 0.2,
-    }
+      const responseEl = document.getElementById("response");
+      const placeholderEl = document.getElementById("response-placeholder");
+      const errorEl = document.getElementById("error");
 
-    start = time.monotonic()
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            r = await client.post(f"{VLLM_URL}/v1/chat/completions", json=payload)
-        elapsed_ms = (time.monotonic() - start) * 1000.0
+      const latencyEl = document.getElementById("latency");
+      const promptTokensEl = document.getElementById("prompt_tokens");
+      const completionTokensEl = document.getElementById("completion_tokens");
+      const totalTokensEl = document.getElementById("total_tokens");
 
-        print(">>> vLLM status:", r.status_code)
-        print(">>> vLLM body (truncated):", r.text[:400])
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
 
-        r.raise_for_status()
-        data = r.json()
-        text = data["choices"][0]["message"]["content"]
-        usage = data.get("usage", {})
-    except Exception as e:
-        import traceback
+        const prompt = promptEl.value.trim();
+        if (!prompt) {
+          return;
+        }
 
-        traceback.print_exc()
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Failed to contact vLLM: {e}"},
-        )
+        // Reset UI state
+        errorEl.style.display = "none";
+        errorEl.textContent = "";
+        statusEl.textContent = "Sending…";
+        sendBtn.disabled = true;
 
-    return {
-        "response": text.strip(),
-        "latency_ms": round(elapsed_ms, 1),
-        "usage": usage,
-    }
+        try {
+          const res = await fetch("/api/generate", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({ prompt }),
+          });
 
+          const data = await res.json();
 
-if __name__ == "__main__":
-    import uvicorn
+          if (!res.ok) {
+            placeholderEl.style.display = "none";
+            responseEl.style.display = "none";
+            errorEl.style.display = "block";
+            errorEl.textContent = data.error || "Request failed";
+          } else {
+            placeholderEl.style.display = "none";
+            errorEl.style.display = "none";
+            responseEl.style.display = "block";
+            responseEl.textContent = data.response || "";
 
-    uvicorn.run("ui:app", host="0.0.0.0", port=8080, reload=True)
+            const latencyMs = data.latency_ms ?? null;
+            latencyEl.textContent =
+              latencyMs != null ? (latencyMs / 1000).toFixed(2) : "–";
+
+            const usage = data.usage || {};
+            promptTokensEl.textContent =
+              usage.prompt_tokens != null ? usage.prompt_tokens : "–";
+            completionTokensEl.textContent =
+              usage.completion_tokens != null ? usage.completion_tokens : "–";
+            totalTokensEl.textContent =
+              usage.total_tokens != null ? usage.total_tokens : "–";
+          }
+        } catch (err) {
+          placeholderEl.style.display = "none";
+          responseEl.style.display = "none";
+          errorEl.style.display = "block";
+          errorEl.textContent = "Network error: " + err;
+        } finally {
+          sendBtn.disabled = false;
+          statusEl.textContent = "";
+        }
+      });
+    });
+  </script>
+</body>
+</html>
 

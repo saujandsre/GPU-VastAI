@@ -21,7 +21,8 @@ Step 4)
 Test curl first 
 
 curl -s http://localhost:8000/v1/models | jq
-
+export VLLM_URL=http://127.0.0.1:8000
+export MODEL_NAME="Qwen/Qwen2.5-3B-Instruct"
 
 Step 5)
 To setup the GUI run below

@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-ui
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-ui
+  template:
+    metadata:
+      labels:
+        app: vllm-ui
+    spec:
+      containers:
+        - name: vllm-ui
+          image: saujandsre/vllm-ui:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            # Model name from ConfigMap
+            - name: MODEL_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: vllm-config      # 👈 adjust if your ConfigMap has a different name
+                  key: MODEL_NAME
+            # vLLM endpoint via Service DNS
+            - name: VLLM_URL
+              value: "http://vllm-api:8000"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
+

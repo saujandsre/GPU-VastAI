@@ -25,7 +25,13 @@ templates = Jinja2Templates(directory="templates")
 # ---------- Routes ----------
 @app.get("/", response_class=HTMLResponse)
 async def get_ui(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", 
+                                      {
+                                          "request": request, 
+                                          "model_name": MODEL_NAMEi,
+                                          },
+                                      )
+
 
 
 @app.post("/api/generate")

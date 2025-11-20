@@ -21,11 +21,11 @@ spec:
             - containerPort: 8080
           env:
             # Model name from ConfigMap
-            - name: MODEL_NAME
+            - name: MODEL_ID
               valueFrom:
                 configMapKeyRef:
                   name: vllm-config      # 👈 adjust if your ConfigMap has a different name
-                  key: MODEL_NAME
+                  key: MODEL_ID
             # vLLM endpoint via Service DNS
             - name: VLLM_URL
               value: "http://vllm-api:8000"

@@ -9,10 +9,10 @@ import httpx
 
 # ---------- Config ----------
 VLLM_URL = os.environ.get("VLLM_URL", "http://127.0.0.1:8000")
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-3B-Instruct")
+MODEL_ID = os.environ.get("MODEL_ID", "Qwen/Qwen2.5-3B-Instruct")
 
 print(">>> VLLM_URL:", VLLM_URL)
-print(">>> MODEL_NAME:", MODEL_NAME)
+print(">>> MODEL_ID:", MODEL_ID)
 
 # ---------- App setup ----------
 app = FastAPI()
@@ -25,20 +25,20 @@ templates = Jinja2Templates(directory="templates")
 # ---------- Routes ----------
 @app.get("/", response_class=HTMLResponse)
 async def get_ui(request: Request):
-    return templates.TemplateResponse("index.html", 
-                                      {
-                                          "request": request, 
-                                          "model_name": MODEL_NAMEi,
-                                          },
-                                      )
-
-
+  return templates.TemplateResponse(
+    "index.html",
+    {
+        "request": request,
+        "model_name": MODEL_ID,
+    },
+)
+ 
 
 @app.post("/api/generate")
 async def generate(prompt: str = Form(...)):
     """Proxy prompt to vLLM and return text + stats."""
     payload = {
-        "model": MODEL_NAME,
+        "model": MODEL_ID,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 512,
         "temperature": 0.2,

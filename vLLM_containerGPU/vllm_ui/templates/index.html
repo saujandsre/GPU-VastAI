@@ -3,16 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <title>vLLM Chat UI</title>
-   <p class="subtitle">
-      Talking to model: <strong>{{ model_name }}</strong>
-    </p>
   <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
 </head>
 <body>
   <div class="app-shell">
     <header class="app-header">
       <div>
-        <h1>vLLM Chat</h1>
+	      <h1>vLLM Chat - {{ model_id }}</h1>
        </div>
     </header>
 

@@ -29,7 +29,7 @@ async def get_ui(request: Request):
     "index.html",
     {
         "request": request,
-        "model_name": MODEL_ID,
+        "model_id": MODEL_ID,
     },
 )
  

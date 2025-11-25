@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: vllm
-          image: saujandsre/vllm-generic:latest
+          image: saujandsre/vllm-generic:v1
           ports:
             - containerPort: 8000
           envFrom:

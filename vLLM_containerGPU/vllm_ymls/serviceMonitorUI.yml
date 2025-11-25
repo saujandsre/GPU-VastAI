@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vllm-ui
+  namespace: default
+  labels:
+    release: prometheus   # ← match your Prometheus stack’s label
+spec:
+  selector:
+    matchLabels:
+      prometheus: enabled   # ← matches your Service labels
+  namespaceSelector:
+    matchNames:
+      - default
+  endpoints:
+    - name: http
+      path: /metrics
+      interval: 5s
+      scrapeTimeout: 10s
+

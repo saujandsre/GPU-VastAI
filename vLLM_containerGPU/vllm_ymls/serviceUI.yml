@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: vllm-ui
   namespace: default
+  labels: 
+    prometheus: enabled
 spec:
   selector:
     app: vllm-ui

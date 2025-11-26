@@ -9,7 +9,8 @@ spec:
   selector:
     app: vllm-ui
   ports:
-    - port: 8080
+    - name: http
+      port: 8080
       targetPort: 8080
       protocol: TCP
 

@@ -34,7 +34,7 @@ helm repo update
 
 # 5. Install the NVIDIA GPU Operator
 echo "🚀 Installing NVIDIA GPU Operator..."
-helm install --wait --generate-name nvidia/gpu-operator
+helm install --wait --timeout 5m --generate-name nvidia/gpu-operator
 
 # 6. Verify GPU resources on node
 echo "🔍 Checking node GPU resources..."

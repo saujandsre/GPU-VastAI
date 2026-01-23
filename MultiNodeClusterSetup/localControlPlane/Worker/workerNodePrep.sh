@@ -8,6 +8,17 @@ set -euo pipefail
 echo "🔧 Preparing Vast.ai GPU Worker Node"
 echo "====================================="
 
+# Ask for hostname
+read -p "Enter hostname for this worker (e.g., vast-worker-1): " NEW_HOSTNAME
+if [[ -z "$NEW_HOSTNAME" ]]; then
+    echo "❌ Hostname cannot be empty!"
+    exit 1
+fi
+
+echo "📝 Setting hostname to: $NEW_HOSTNAME"
+hostnamectl set-hostname "$NEW_HOSTNAME"
+echo "✅ Hostname set"
+
 # 1. Update apt (no full upgrade to save time)
 echo "📦 Updating package lists..."
 apt update -y
@@ -27,26 +38,28 @@ if ! command -v tailscale &>/dev/null; then
     echo "📦 Installing Tailscale..."
     curl -fsSL https://tailscale.com/install.sh | sh
     echo "✅ Tailscale installed"
-    echo ""
-    echo "⚠️  IMPORTANT: Run 'sudo tailscale up' NOW to connect to your network"
-    echo "   Then press ENTER to continue..."
-    read -r
-else
-    echo "✅ Tailscale already installed"
 fi
 
-# Verify Tailscale is connected
+# 5. Connect to Tailscale network
 if ! tailscale status &>/dev/null; then
-    echo "❌ Tailscale is not connected!"
-    echo "   Run: sudo tailscale up"
-    echo "   Then re-run this script."
-    exit 1
+    if [[ -n "${TS_AUTHKEY:-}" ]]; then
+        echo "🔐 Connecting via TS_AUTHKEY..."
+        tailscale up --authkey="$TS_AUTHKEY" --accept-routes --hostname="$NEW_HOSTNAME"
+        echo "✅ Tailscale connected"
+    else
+        echo "❌ Tailscale is not connected and TS_AUTHKEY not set!"
+        echo "   Set env var: export TS_AUTHKEY='tskey-auth-...'"
+        echo "   Then re-run: sudo -E ./workerNodePrep.sh"
+        exit 1
+    fi
+else
+    echo "✅ Tailscale already connected"
 fi
 
 WORKER_TAILSCALE_IP=$(tailscale ip -4)
 echo "✅ Worker Tailscale IP: $WORKER_TAILSCALE_IP"
 
-# 5. Install and configure containerd properly
+# 6. Install and configure containerd properly
 echo "📦 Setting up containerd..."
 apt install -y containerd
 
@@ -70,7 +83,7 @@ systemctl enable containerd
 
 echo "✅ containerd configured"
 
-# 6. Load kernel modules required by k8s
+# 7. Load kernel modules required by k8s
 echo "🔧 Loading required kernel modules..."
 modprobe overlay
 modprobe br_netfilter
@@ -91,7 +104,7 @@ EOF
 sysctl --system >/dev/null
 echo "✅ Kernel modules and sysctl configured"
 
-# 7. Add Kubernetes repo
+# 8. Add Kubernetes repo
 echo "📦 Adding Kubernetes repository..."
 rm -f /etc/apt/sources.list.d/kubernetes.list
 mkdir -p -m 755 /etc/apt/keyrings
@@ -102,21 +115,21 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key \
 echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' \
   | tee /etc/apt/sources.list.d/kubernetes.list
 
-# 8. Install kubelet, kubeadm, kubectl
+# 9. Install kubelet, kubeadm, kubectl
 apt update -y
 apt install -y kubelet kubeadm kubectl
 apt-mark hold kubelet kubeadm kubectl
 
 echo "✅ Kubernetes binaries installed"
 
-# 9. Check if already part of a cluster
+# 10. Check if already part of a cluster
 if [[ -f /etc/kubernetes/kubelet.conf ]]; then
-    echo "⚠️  This node is already part of a cluster"
+    echo "⚠️   This node is already part of a cluster"
     echo "   To reset: sudo kubeadm reset"
     exit 1
 fi
 
-# 10. Pre-pull kubeadm images (speeds up join)
+# 11. Pre-pull kubeadm images (speeds up join)
 echo "📥 Pre-pulling Kubernetes images (saves time during join)..."
 kubeadm config images pull
 
@@ -126,9 +139,11 @@ echo "✅ Worker Node Preparation Complete!"
 echo "=========================================="
 echo ""
 echo "📋 Worker Info:"
+echo "   Hostname: $NEW_HOSTNAME"
 echo "   Tailscale IP: $WORKER_TAILSCALE_IP"
 echo ""
 echo "✅ What was configured:"
+echo "   ✓ Hostname set"
 echo "   ✓ Swap disabled"
 echo "   ✓ Tailscale connected"
 echo "   ✓ containerd with CRI plugin enabled"

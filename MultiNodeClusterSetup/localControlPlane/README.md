@@ -16,3 +16,7 @@ Monitoring is installed locally (Prometheus/Grafana), and GPU metrics are export
 └── Worker/
     └── workerNodePrep.sh       # run on each worker node before kubeadm join
 
+
+Label the worker nodes
+
+kubectl label node <vast-worker-name> node-role.kubernetes.io/worker=

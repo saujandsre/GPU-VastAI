@@ -3,6 +3,7 @@ kind: Pod
 metadata:
   name: gpu-test
 spec:
+  node-role.kubernetes.io/worker: ""
   restartPolicy: Always
   containers:
   - name: cuda-test

@@ -104,7 +104,19 @@ EOF
 sysctl --system >/dev/null
 echo "✅ Kernel modules and sysctl configured"
 
-# 8. Add Kubernetes repo
+# 8. Configure kubelet to use Tailscale IP
+TAILSCALE_IP=$(tailscale ip -4)
+echo "📍 Configuring kubelet to use Tailscale IP: $TAILSCALE_IP"
+
+# Write to /etc/default/kubelet (where kubeadm sources KUBELET_EXTRA_ARGS from)
+echo "KUBELET_EXTRA_ARGS=--node-ip=$TAILSCALE_IP" | sudo tee /etc/default/kubelet
+
+# Create manifests directory (silences kubelet warnings)
+sudo mkdir -p /etc/kubernetes/manifests
+
+echo "✅ Kubelet configured to use Tailscale IP"
+
+# 9. Add Kubernetes repo
 echo "📦 Adding Kubernetes repository..."
 rm -f /etc/apt/sources.list.d/kubernetes.list
 mkdir -p -m 755 /etc/apt/keyrings
@@ -115,21 +127,21 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key \
 echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' \
   | tee /etc/apt/sources.list.d/kubernetes.list
 
-# 9. Install kubelet, kubeadm, kubectl
+# 10. Install kubelet, kubeadm, kubectl
 apt update -y
 apt install -y kubelet kubeadm kubectl
 apt-mark hold kubelet kubeadm kubectl
 
 echo "✅ Kubernetes binaries installed"
 
-# 10. Check if already part of a cluster
+# 11. Check if already part of a cluster
 if [[ -f /etc/kubernetes/kubelet.conf ]]; then
     echo "⚠️   This node is already part of a cluster"
     echo "   To reset: sudo kubeadm reset"
     exit 1
 fi
 
-# 11. Pre-pull kubeadm images (speeds up join)
+# 12. Pre-pull kubeadm images (speeds up join)
 echo "📥 Pre-pulling Kubernetes images (saves time during join)..."
 kubeadm config images pull
 
@@ -149,6 +161,7 @@ echo "   ✓ Tailscale connected"
 echo "   ✓ containerd with CRI plugin enabled"
 echo "   ✓ Kernel modules loaded (overlay, br_netfilter)"
 echo "   ✓ sysctl networking params set"
+echo "   ✓ kubelet configured to use Tailscale IP (via /etc/default/kubelet)"
 echo "   ✓ kubelet, kubeadm, kubectl installed"
 echo "   ✓ Kubernetes images pre-pulled"
 echo ""
@@ -161,7 +174,8 @@ echo "      sudo kubeadm join <CONTROL_PLANE_TAILSCALE_IP>:6443 --token <token> 
 echo "        --discovery-token-ca-cert-hash sha256:<hash>"
 echo ""
 echo "   3. Verify on control plane:"
-echo "      kubectl get nodes"
+echo "      kubectl get nodes -o wide"
+echo "      # InternalIP should show Tailscale IP (100.x.x.x)"
 echo ""
 echo "   4. After joining, install GPU Operator:"
 echo "      bash GPUNodes.sh"

@@ -1,0 +1,19 @@
+# Python junk
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Local virtualenvs
+venv/
+.venv/
+vllm/
+vllm_venv/
+
+# Git / editor / OS noise
+.git
+.gitignore
+*.log
+*.swp
+*.swo
+.DS_Store
+

@@ -1,0 +1,6 @@
+python-multipart
+jinja2
+uvicorn
+httpx
+fastapi
+prometheus-client

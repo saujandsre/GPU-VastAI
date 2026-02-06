@@ -1,0 +1,256 @@
+:root {
+  --bg: #f3f4f6;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --text: #111827;
+  --text-muted: #6b7280;
+  --accent: #16a34a;
+  --accent-soft: #22c55e;
+  --error: #b91c1c;
+  --shadow-soft: 0 18px 40px rgba(15, 23, 42, 0.09);
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-pill: 999px;
+  --font-main: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Segoe UI", sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-main);
+  background: radial-gradient(circle at top, #e5f3ff 0, #f3f4f6 38%, #e5f3ff 80%);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+}
+
+.app-shell {
+  width: 100%;
+  max-width: 1100px;
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: 24px;
+  box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 20px 22px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Header */
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: 0.03em;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Layout */
+
+.app-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr);
+  gap: 18px;
+  margin-top: 6px;
+}
+
+@media (max-width: 900px) {
+  .app-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Panels */
+
+.panel {
+  background: linear-gradient(180deg, #f9fafb, #ffffff);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+/* Prompt form */
+
+.prompt-form {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+textarea {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: #f9fafb;
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 140px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: var(--text);
+  outline: none;
+}
+
+textarea::placeholder {
+  color: #9ca3af;
+}
+
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.35);
+  background: #ffffff;
+}
+
+.form-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+button {
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 8px 22px;
+  background: linear-gradient(135deg, var(--accent-soft), var(--accent));
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(16, 185, 129, 0.35);
+  transition: transform 0.08s ease, box-shadow 0.1s ease, filter 0.1s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+button:active {
+  transform: translateY(0);
+  box-shadow: 0 5px 16px rgba(15, 23, 42, 0.18);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+  box-shadow: none;
+}
+
+.status-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* Response */
+
+.response-box {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: #ffffff;
+  padding: 10px 12px;
+  min-height: 140px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.placeholder {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.response-text {
+  white-space: pre-wrap;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.error-text {
+  color: var(--error);
+  font-size: 0.9rem;
+}
+
+/* Metrics */
+
+.metrics {
+  margin-top: 8px;
+}
+
+.metrics-title {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.metrics-grid {
+  border-radius: 14px;
+  border: 1px dashed rgba(148, 163, 184, 0.7);
+  background: #f9fafb;
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 16px;
+  font-size: 0.82rem;
+}
+
+.metric {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.metric-label {
+  color: var(--text-muted);
+}
+
+.metric-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Footer */
+
+.app-footer {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: right;
+}
+

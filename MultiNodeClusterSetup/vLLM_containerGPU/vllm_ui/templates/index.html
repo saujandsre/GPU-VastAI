@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>vLLM Chat UI</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div>
+	      <h1>vLLM Chat - {{ model_id }}</h1>
+       </div>
+    </header>
+
+    <main class="app-main">
+      <!-- Left: Prompt -->
+      <section class="panel">
+        <h2 class="panel-title">Prompt</h2>
+
+        <form id="chat-form" class="prompt-form">
+          <textarea
+            id="prompt"
+            placeholder="Ask the model anything…"
+            rows="6"
+          ></textarea>
+
+          <div class="form-footer">
+            <button id="send-btn" type="submit">Send</button>
+            <span id="status" class="status-text"></span>
+          </div>
+        </form>
+      </section>
+
+      <!-- Right: Response + metrics -->
+      <section class="panel">
+        <h2 class="panel-title">Response</h2>
+
+        <div class="response-box">
+          <div id="response-placeholder" class="placeholder">
+            The model’s reply will appear here.
+          </div>
+          <div id="response" class="response-text" style="display:none;"></div>
+          <div id="error" class="error-text" style="display:none;"></div>
+        </div>
+
+        <div class="metrics">
+          <h3 class="metrics-title">Request metrics</h3>
+          <div class="metrics-grid">
+            <div class="metric">
+              <span class="metric-label">Latency</span>
+              <span class="metric-value">
+                <span id="latency">–</span> s
+              </span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Prompt tokens</span>
+              <span id="prompt_tokens" class="metric-value">–</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Completion tokens</span>
+              <span id="completion_tokens" class="metric-value">–</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Total tokens</span>
+              <span id="total_tokens" class="metric-value">–</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      vLLM demo • single-turn chat • latency + token usage
+    </footer>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const form = document.getElementById("chat-form");
+      const promptEl = document.getElementById("prompt");
+      const sendBtn = document.getElementById("send-btn");
+      const statusEl = document.getElementById("status");
+
+      const responseEl = document.getElementById("response");
+      const placeholderEl = document.getElementById("response-placeholder");
+      const errorEl = document.getElementById("error");
+
+      const latencyEl = document.getElementById("latency");
+      const promptTokensEl = document.getElementById("prompt_tokens");
+      const completionTokensEl = document.getElementById("completion_tokens");
+      const totalTokensEl = document.getElementById("total_tokens");
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const prompt = promptEl.value.trim();
+        if (!prompt) {
+          return;
+        }
+
+        // Reset UI state
+        errorEl.style.display = "none";
+        errorEl.textContent = "";
+        statusEl.textContent = "Sending…";
+        sendBtn.disabled = true;
+
+        try {
+          const res = await fetch("/api/generate", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({ prompt }),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            placeholderEl.style.display = "none";
+            responseEl.style.display = "none";
+            errorEl.style.display = "block";
+            errorEl.textContent = data.error || "Request failed";
+          } else {
+            placeholderEl.style.display = "none";
+            errorEl.style.display = "none";
+            responseEl.style.display = "block";
+            responseEl.textContent = data.response || "";
+
+            const latencyMs = data.latency_ms ?? null;
+            latencyEl.textContent =
+              latencyMs != null ? (latencyMs / 1000).toFixed(2) : "–";
+
+            const usage = data.usage || {};
+            promptTokensEl.textContent =
+              usage.prompt_tokens != null ? usage.prompt_tokens : "–";
+            completionTokensEl.textContent =
+              usage.completion_tokens != null ? usage.completion_tokens : "–";
+            totalTokensEl.textContent =
+              usage.total_tokens != null ? usage.total_tokens : "–";
+          }
+        } catch (err) {
+          placeholderEl.style.display = "none";
+          responseEl.style.display = "none";
+          errorEl.style.display = "block";
+          errorEl.textContent = "Network error: " + err;
+        } finally {
+          sendBtn.disabled = false;
+          statusEl.textContent = "";
+        }
+      });
+    });
+  </script>
+</body>
+</html>
+

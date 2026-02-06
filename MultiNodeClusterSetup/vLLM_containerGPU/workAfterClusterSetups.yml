@@ -1,0 +1,9 @@
+#Get the pods ready 
+
+Apply all the vllm_ymls file 
+
+
+# Port Forward the UI 
+kubectl port-forward svc/vllm-ui 8080:8080 & 
+
+

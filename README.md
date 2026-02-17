@@ -1,140 +1,124 @@
 # GPU-VastAI ⚙️
 
-Personal lab project for experimenting with **GPU workloads**, **Python GPU utilities**, and **Kubernetes automation** across:
+Hands-on lab for running **GPU inference workloads on Kubernetes** — from bare-metal scripts to production-style vLLM serving with full observability.
 
-- Bare-metal GPU runs  
-- Containerized GPU workloads  
-- vLLM-based serving on Kubernetes  
+Two cluster modes:
+
+| Mode | What it does |
+|------|-------------|
+| **SingleNodeClusterSetup** | Everything on one Vast.ai GPU box — quick experiments, model testing, baseline measurements |
+| **MultiNodeClusterSetup** | Local control plane (your desktop) + ephemeral Vast.ai GPU workers joined via **Tailscale** — cost-effective, persistent cluster |
 
 ---
 
-## 🗂️ Repository Structure
+## Repository Structure
 
-```bash
+```
 GPU-VastAI/
 │
-├── bare-metal-gpu/
-│   └── Scripts / notes for running models directly on the GPU host
+├── SingleNodeClusterSetup/
+│   ├── baremetalGPU/                  # Run models directly on GPU host (no containers)
+│   ├── containerGPU/                  # Dockerized FastAPI + HF Transformers inference
+│   │   ├── app/                       #   FastAPI app (main.py, model_loader.py)
+│   │   ├── k8s/                       #   Deployment, Service, ConfigMap manifests
+│   │   └── Dockerfile
+│   ├── vLLM_containerGPU/             # vLLM-based model serving on k8s
+│   │   ├── k8s_clusterSetup/          #   Cluster bootstrap scripts + monitoring
+│   │   ├── vllm_ymls/                 #   vLLM + UI deployments, services, configmaps
+│   │   └── vllm_ui/                   #   FastAPI chat UI with Prometheus metrics
+│   ├── PythonScripts/                 # GPU diagnostics & stress tests
+│   └── Grafana/                       # Dashboard JSONs (GPU + LLM metrics)
 │
-├── container-gpu/
-│   └── Docker / container setup for running the same workloads in containers
+├── MultiNodeClusterSetup/
+│   ├── localControlPlane/             # Desktop-side control plane setup
+│   │   ├── localControlPlane.sh       #   kubeadm init with Tailscale + Cilium CNI
+│   │   ├── localCleanUp.sh            #   Full cluster teardown
+│   │   ├── monitoringLocal.sh         #   Prometheus + Grafana stack
+│   │   ├── enableGPUMonitoring.sh     #   Wire DCGM exporter → Prometheus
+│   │   ├── GPUNodes.sh                #   NVIDIA GPU Operator install
+│   │   ├── serviceMonitorGPU.yml      #   ServiceMonitor for DCGM metrics
+│   │   └── Worker/
+│   │       └── workerNodePrep.sh      #   Vast.ai worker bootstrap + Tailscale join
+│   └── vLLM_containerGPU/             # vLLM serving manifests (multi-node variant)
+│       ├── vllm_ymls/                 #   Same structure as single-node
+│       └── vllm_ui/                   #   Chat UI + Prometheus instrumentation
 │
-├── vllm-container-gpu/
-│   ├── app/                     # vLLM server + UI / client code
-│   └── kubernetes-cluster-setup/
-│       └── ...                  # K8s manifests/scripts to prep the cluster for vLLM
-│
-├── K8s/
-│   └── SingleNodeClusterSetup/
-│       ├── preChecks.sh
-│       ├── controlNode.sh
-│       ├── GPUNodes.sh
-│       ├── monitoring.sh
-│       ├── runall.sh
-│       ├── setup_torch_venv.sh
-│       ├── general.txt
-│       └── ymls/
-│           ├── GPU_Access.yml
-│           └── serviceMonitorGPU.yml
-│
-├── PythonScripts/
-│   ├── checkCUDA_GPUinfo.py
-│   └── continousMatrixMultiplication.py
-│
-└── Grafana/
-    └── GPU-Dash.json
+└── README.md
+```
 
-What each area is for
+---
 
-    bare-metal-gpu/
-    Run models directly on the GPU host (no containers). Useful for baseline measurements and simple experiments.
+## Quick Start
 
-    container-gpu/
-    Run the same or similar workloads inside containers (e.g. Docker). Good for comparing bare-metal vs container overhead and for more reproducible runs.
+### Option A — Single-Node (Vast.ai GPU box)
 
-    vllm-container-gpu/
-    vLLM-based serving in containers.
-
-        Includes everything needed to stand up a vLLM deployment.
-
-        Contains its own Kubernetes cluster setup under kubernetes-cluster-setup/ that is tuned for this vLLM environment.
-
-        The wider K8s/SingleNodeClusterSetup still works for vLLM as well, but it has extra dependencies; vllm-container-gpu is the recommended path if you just want vLLM running quickly.
-
-    K8s/SingleNodeClusterSetup/
-    Generic single-node Kubernetes cluster setup with GPU support and monitoring:
-
-        Control-plane and GPU node bootstrap scripts
-
-        GPU access YAMLs
-
-        Prometheus + DCGM Exporter + Grafana stack via monitoring.sh
-
-    PythonScripts/
-    Small Python utilities for:
-
-        GPU diagnostics (checkCUDA_GPUinfo.py)
-
-        Simple CUDA-based workload testing (continousMatrixMultiplication.py)
-
-    Grafana/
-    Custom GPU dashboard JSON (GPU-Dash.json) used with Prometheus + DCGM Exporter to visualize:
-
-        GPU utilization
-
-        VRAM usage
-
-        Temperature
-
-        Cluster-level metrics
-
-🚀 Quick Start
-1. Clone the repo
-
-git clone https://github.com/<your-username>/GPU-VastAI.git
-cd GPU-VastAI
-
-2. Stand up the generic single-node K8s + GPU monitoring stack (optional but reusable)
-
-Use this if you want a general-purpose Kubernetes + monitoring environment:
-
-cd K8s/SingleNodeClusterSetup
+```bash
+cd SingleNodeClusterSetup/vLLM_containerGPU/k8s_clusterSetup
 chmod +x *.sh
-./runall.sh
+./runall.sh          # bootstraps k8s, GPU operator, Prometheus/Grafana
 
-This will:
+# Deploy vLLM
+cd ../vllm_ymls
+kubectl apply -f configMap.yml -f vllmDeploy.yml -f vllmService.yml
+kubectl apply -f deployUI.yml -f serviceUI.yml -f serviceMonitorUI.yml
 
-    Bootstrap a single-node K8s cluster
+# Access
+kubectl port-forward svc/vllm-ui 8080:8080 &
+```
 
-    Configure GPU access
+### Option B — Multi-Node (Local Desktop + Vast.ai Workers)
 
-    Deploy Prometheus + DCGM Exporter + Grafana using the provided YAMLs
+**On your desktop (control plane):**
+```bash
+cd MultiNodeClusterSetup/localControlPlane
+sudo bash localControlPlane.sh    # kubeadm init + Cilium + Tailscale
+bash monitoringLocal.sh            # Prometheus + Grafana
+```
 
-3. Choose your path
+**On each Vast.ai worker:**
+```bash
+export TS_AUTHKEY="tskey-auth-..."
+sudo -E bash workerNodePrep.sh     # installs k8s + Tailscale, configures kubelet
+sudo kubeadm join <TAILSCALE_IP>:6443 --token ... --discovery-token-ca-cert-hash ...
+```
 
-    Bare-metal GPU experiments
+**Back on control plane:**
+```bash
+kubectl label node <worker> node-role.kubernetes.io/worker=
+bash GPUNodes.sh                   # installs NVIDIA GPU Operator
+bash enableGPUMonitoring.sh        # wires DCGM → Prometheus
 
-cd bare-metal-gpu
-# See files in this directory for environment setup and run instructions
+# Deploy vLLM
+cd ../vLLM_containerGPU/vllm_ymls
+kubectl apply -f configMap.yml -f vllmDeploy.yml -f vllmService.yml
+kubectl apply -f deployUI.yml -f serviceUI.yml -f serviceMonitorUI.yml
+kubectl port-forward svc/vllm-ui 8080:8080 &
+```
 
-Containerized GPU workloads
+---
 
-cd container-gpu
-# Build and run the GPU container(s) as documented here
+## Monitoring
 
-vLLM in containers (recommended for vLLM)
+Two Grafana dashboards are provided in `SingleNodeClusterSetup/Grafana/`:
 
-    cd vllm-container-gpu
-    # 1) Use kubernetes-cluster-setup/ to prepare the cluster for this vLLM stack
-    # 2) Deploy vLLM server + UI from this directory
+| Dashboard | Metrics |
+|-----------|---------|
+| **GPU-Dash.json** | SM clock frequency, GPU temperature, VRAM used/free, GPU utilization (via DCGM) |
+| **LLM-Dash.json** | Request latency (P50/P95/P99), tokens in/out, request rate, error rate (via UI Prometheus metrics) |
 
-👤 Author
+Import via Grafana → Dashboards → Import → Upload JSON.
 
-Saujan DSRE
-SRE | AI/ML Infrastructure & GPU Enthusiast
+---
 
-🔗
-YouTube: https://www.youtube.com/@SaujanBohara
+## Tech Stack
 
-LinkedIn: https://www.linkedin.com/in/saujanya-bohara/
+Kubernetes (kubeadm) · Cilium CNI · Tailscale VPN · NVIDIA GPU Operator · DCGM Exporter · Prometheus · Grafana · vLLM · FastAPI · PyTorch · Docker
 
+---
+
+## Author
+
+**Saujan DSRE** — Production SRE @ IBM Cloud | AI/ML Infrastructure
+
+- YouTube: [youtube.com/@SaujanBohara](https://www.youtube.com/@SaujanBohara)
+- LinkedIn: [linkedin.com/in/saujanya-bohara](https://www.linkedin.com/in/saujanya-bohara/)

@@ -1,0 +1,512 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Request Rate (req/s)",
+      "description": "Current requests per second hitting the UI",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#73BF69", "value": null },
+              { "color": "#FF9830", "value": 10 },
+              { "color": "#F2495C", "value": 50 }
+            ]
+          },
+          "unit": "reqps",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(ui_http_requests_total[1m]))",
+          "legendFormat": "req/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Error Rate (%)",
+      "description": "Percentage of 5xx responses",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#73BF69", "value": null },
+              { "color": "#FF9830", "value": 1 },
+              { "color": "#F2495C", "value": 5 }
+            ]
+          },
+          "unit": "percent",
+          "decimals": 2,
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(ui_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(ui_http_requests_total[5m]))",
+          "legendFormat": "error %",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Total Tokens (Prompt)",
+      "description": "Cumulative prompt tokens sent to model",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#8AB8FF", "value": null }
+            ]
+          },
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "ui_tokens_in_total",
+          "legendFormat": "prompt tokens",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Total Tokens (Completion)",
+      "description": "Cumulative completion tokens generated",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#FADE2A", "value": null }
+            ]
+          },
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "ui_tokens_out_total",
+          "legendFormat": "completion tokens",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Request Latency — P50 / P95 / P99",
+      "description": "Latency percentiles for /api/generate endpoint",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "id": 5,
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "scheme",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 30 }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(ui_http_request_latency_seconds_bucket{path=\"/api/generate\"}[5m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ui_http_request_latency_seconds_bucket{path=\"/api/generate\"}[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(ui_http_request_latency_seconds_bucket{path=\"/api/generate\"}[5m])) by (le))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Token Throughput (tokens/sec)",
+      "description": "Rate of prompt and completion tokens over time",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "id": 6,
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "tokens/sec",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "scheme",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "prompt tok/s" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "#8AB8FF", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "completion tok/s" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "#FADE2A", "mode": "fixed" } }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "rate(ui_tokens_in_total[1m])",
+          "legendFormat": "prompt tok/s",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(ui_tokens_out_total[1m])",
+          "legendFormat": "completion tok/s",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Request Rate by Status",
+      "description": "HTTP requests/sec broken down by response status code",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "id": 7,
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "req/s",
+            "axisPlacement": "auto",
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": ".*200.*" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "#73BF69", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byRegexp", "options": ".*5[0-9]{2}.*" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "#F2495C", "mode": "fixed" } }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(ui_http_requests_total[1m]))",
+          "legendFormat": "HTTP {{status}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Cumulative Tokens Over Time",
+      "description": "Running total of prompt and completion tokens",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "id": 8,
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "tokens",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 5,
+            "gradientMode": "scheme",
+            "lineInterpolation": "smooth",
+            "lineWidth": 3,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "prompt (in)" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "#8AB8FF", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "completion (out)" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "#FADE2A", "mode": "fixed" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "total" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "#FF9830", "mode": "fixed" } }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "ui_tokens_in_total",
+          "legendFormat": "prompt (in)",
+          "refId": "A"
+        },
+        {
+          "expr": "ui_tokens_out_total",
+          "legendFormat": "completion (out)",
+          "refId": "B"
+        },
+        {
+          "expr": "ui_tokens_in_total + ui_tokens_out_total",
+          "legendFormat": "total",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency Heatmap — /api/generate",
+      "description": "Average request latency over time",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 21 },
+      "id": 9,
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "scheme",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "line+area" }
+          },
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "transparent", "value": null },
+              { "color": "#FF9830", "value": 10 },
+              { "color": "#F2495C", "value": 30 }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "table", "placement": "right", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "rate(ui_http_request_latency_seconds_sum{path=\"/api/generate\"}[5m]) / rate(ui_http_request_latency_seconds_count{path=\"/api/generate\"}[5m])",
+          "legendFormat": "avg latency",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ui_http_request_latency_seconds_bucket{path=\"/api/generate\"}[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        }
+      ]
+    }
+  ],
+  "preload": false,
+  "schemaVersion": 42,
+  "tags": ["vllm", "inference", "gpu"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "vLLM Inference Dashboard",
+  "uid": "vllm-inference-dash",
+  "version": 1
+}

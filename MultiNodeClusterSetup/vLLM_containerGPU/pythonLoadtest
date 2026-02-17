@@ -9,8 +9,7 @@ import random
 import statistics
 from typing import List
 
-UI_ENDPOINT = "http://localhost:8080/api/generate"
-
+UI_ENDPOINT = "http://100.76.229.37:30080/api/generate"
 PROMPTS = [
     "Explain REST APIs in 100 words",
     "List 25 European capitals",
@@ -114,7 +113,7 @@ if __name__ == "__main__":
     # asyncio.run(run_load_test(num_requests=20, concurrency=5))
     
     # Medium load (good for demo)
-    asyncio.run(run_load_test(num_requests=50, concurrency=10))
+    #asyncio.run(run_load_test(num_requests=50, concurrency=10))
     
     # Heavy load (watch your metrics spike!)
-    # asyncio.run(run_load_test(num_requests=100, concurrency=20))
+     asyncio.run(run_load_test(num_requests=100, concurrency=20))

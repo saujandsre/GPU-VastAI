@@ -109,7 +109,7 @@ async def generate(prompt: str = Form(...)):
     start = time.monotonic()
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             r = await client.post(f"{VLLM_URL}/v1/chat/completions", json=payload)
 
         elapsed_ms = (time.monotonic() - start) * 1000.0

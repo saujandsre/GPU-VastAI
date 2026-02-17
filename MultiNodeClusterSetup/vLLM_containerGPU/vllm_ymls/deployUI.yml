@@ -13,6 +13,16 @@ spec:
       labels:
         app: vllm-ui
     spec:
+      # 1. This allows the pod to ignore the "NoSchedule" restriction
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+      
+      # 2. This ensures it actually targets a control-plane node
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+
       containers:
         - name: vllm-ui
           image: saujandsre/vllm-ui:latest
@@ -20,13 +30,11 @@ spec:
           ports:
             - containerPort: 8080
           env:
-            # Model name from ConfigMap
             - name: MODEL_ID
               valueFrom:
                 configMapKeyRef:
-                  name: vllm-config      # 👈 adjust if your ConfigMap has a different name
+                  name: vllm-config
                   key: MODEL_ID
-            # vLLM endpoint via Service DNS
             - name: VLLM_URL
               value: "http://vllm-api:8000"
           readinessProbe:
@@ -41,4 +49,3 @@ spec:
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 20
-

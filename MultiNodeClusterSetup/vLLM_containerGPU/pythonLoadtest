@@ -1,15 +1,28 @@
 #!/usr/bin/env python3
 """
-Load test your UI service (not vLLM directly) to capture Prometheus metrics
+Load test — hits the inference router directly (not the UI).
+Reports per-pod distribution, tier breakdown, and latency stats.
+
+Usage:
+  python3 loadtest_router.py              # medium (default)
+  python3 loadtest_router.py light        # 20 req, 5 concurrency
+  python3 loadtest_router.py medium       # 500 req, 50 concurrency
+  python3 loadtest_router.py heavy        # 1000 req, 100 concurrency
+  python3 loadtest_router.py brutal       # 2000 req, 200 concurrency
+  python3 loadtest_router.py sustained    # 300 req in waves, steady pressure
 """
 import asyncio
 import aiohttp
 import time
 import random
 import statistics
-from typing import List
+import sys
+from collections import Counter
 
-UI_ENDPOINT = "http://100.76.229.37:30080/api/generate"
+# ── Config ──
+ROUTER_ENDPOINT = "http://localhost:9667/v1/chat/completions"
+MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
+
 PROMPTS = [
     "Explain REST APIs in 100 words",
     "List 25 European capitals",
@@ -20,100 +33,228 @@ PROMPTS = [
     "List cloud service providers",
     "Describe the OSI model",
     "What is continuous deployment?",
-    "Explain database indexing"
+    "Explain database indexing",
+    "What is Kubernetes and why use it?",
+    "Explain TCP vs UDP in simple terms",
+    "Describe the CAP theorem",
+    "What are microservices?",
+    "Explain how load balancers work",
 ]
 
-async def send_request(session, request_id: int) -> dict:
-    """Send request to UI service"""
+PRESETS = {
+    "light":     {"num_requests": 20,   "concurrency": 5,   "mode": "burst"},
+    "medium":    {"num_requests": 500,  "concurrency": 50,  "mode": "burst"},
+    "heavy":     {"num_requests": 1000, "concurrency": 100, "mode": "burst"},
+    "brutal":    {"num_requests": 2000, "concurrency": 200, "mode": "burst"},
+    "sustained": {"num_requests": 300,  "concurrency": 30,  "mode": "sustained", "wave_size": 30, "wave_delay": 3.0},
+}
+
+
+async def send_request(session: aiohttp.ClientSession, request_id: int) -> dict:
     prompt = random.choice(PROMPTS)
-    
-    form_data = aiohttp.FormData()
-    form_data.add_field('prompt', prompt)
-    
+    payload = {
+        "model": MODEL_ID,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 512,
+        "temperature": 0.2,
+    }
     start_time = time.time()
     try:
-        async with session.post(UI_ENDPOINT, data=form_data) as resp:
+        async with session.post(ROUTER_ENDPOINT, json=payload) as resp:
             data = await resp.json()
             latency = time.time() - start_time
-            
             usage = data.get("usage", {})
+            routing = data.get("_routing", {})
+
+            if resp.status == 503:
+                return {
+                    "request_id": request_id, "latency": latency, "status": 503,
+                    "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0,
+                    "pod": data.get("pod", "shed"), "tier": "red-shed",
+                    "load_score": 0, "cache_pct": data.get("cache_pct", 0),
+                    "queue_at_route": data.get("queue_depth", 0), "max_tokens_used": 0,
+                }
             return {
-                "request_id": request_id,
-                "latency": latency,
-                "status": resp.status,
+                "request_id": request_id, "latency": latency, "status": resp.status,
                 "prompt_tokens": usage.get("prompt_tokens", 0),
                 "completion_tokens": usage.get("completion_tokens", 0),
                 "total_tokens": usage.get("total_tokens", 0),
-                "ui_latency_ms": data.get("latency_ms", 0)
+                "pod": routing.get("pod", "unknown"), "tier": routing.get("tier", "unknown"),
+                "load_score": routing.get("load_score", 0),
+                "cache_pct": routing.get("cache_pct_at_route", 0),
+                "queue_at_route": routing.get("queue_depth_at_route", 0),
+                "max_tokens_used": routing.get("max_tokens_used", 0),
             }
     except Exception as e:
         return {
-            "request_id": request_id,
-            "latency": time.time() - start_time,
-            "status": 500,
-            "error": str(e)
+            "request_id": request_id, "latency": time.time() - start_time,
+            "status": 500, "error": str(e), "pod": "error", "tier": "error",
         }
 
-async def run_load_test(num_requests: int, concurrency: int):
-    """Execute load test"""
-    print(f"🚀 Starting load test")
-    print(f"   Target: {UI_ENDPOINT}")
-    print(f"   Requests: {num_requests}, Concurrency: {concurrency}\n")
-    
+
+async def run_sustained(session, num_requests, wave_size, wave_delay):
+    """Send requests in waves with pauses — creates steady pressure for nice Grafana graphs."""
     results = []
+    request_id = 0
+    waves = (num_requests + wave_size - 1) // wave_size
+
+    for wave_num in range(waves):
+        remaining = num_requests - request_id
+        batch = min(wave_size, remaining)
+
+        print(f"  📡 Wave {wave_num + 1}/{waves}: sending {batch} requests...")
+        tasks = [send_request(session, request_id + i) for i in range(batch)]
+        batch_results = await asyncio.gather(*tasks)
+        results.extend(batch_results)
+        request_id += batch
+
+        ok = sum(1 for r in batch_results if r.get("status") == 200)
+        shed = sum(1 for r in batch_results if r.get("status") == 503)
+        tiers = Counter(r.get("tier", "?") for r in batch_results if r.get("status") == 200)
+        tier_str = ", ".join(f"{t}={c}" for t, c in tiers.most_common())
+        print(f"         ✅ {ok} ok, 🛑 {shed} shed | tiers: {tier_str}")
+
+        if wave_num < waves - 1:
+            print(f"         ⏳ waiting {wave_delay}s...")
+            await asyncio.sleep(wave_delay)
+
+    return results
+
+
+async def run_load_test(num_requests: int, concurrency: int, mode: str = "burst",
+                         wave_size: int = 30, wave_delay: float = 3.0):
+    print(f"\n{'='*70}")
+    print(f"🚀 ROUTER LOAD TEST — {mode.upper()} MODE")
+    print(f"{'='*70}")
+    print(f"   Target:      {ROUTER_ENDPOINT}")
+    print(f"   Requests:    {num_requests}")
+    print(f"   Concurrency: {concurrency}")
+    if mode == "sustained":
+        print(f"   Wave size:   {wave_size} requests")
+        print(f"   Wave delay:  {wave_delay}s between waves")
+    print(f"   Model:       {MODEL_ID}")
+    print(f"{'='*70}\n")
+
     connector = aiohttp.TCPConnector(limit=concurrency)
-    
+    timeout = aiohttp.ClientTimeout(total=300)
+
     test_start = time.time()
-    async with aiohttp.ClientSession(connector=connector) as session:
-        tasks = [send_request(session, i) for i in range(num_requests)]
-        results = await asyncio.gather(*tasks)
+    async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+        if mode == "sustained":
+            results = await run_sustained(session, num_requests, wave_size, wave_delay)
+        else:
+            tasks = [send_request(session, i) for i in range(num_requests)]
+            results = await asyncio.gather(*tasks)
     test_duration = time.time() - test_start
-    
-    # Filter successful requests
-    successful = [r for r in results if "error" not in r]
-    failed = len(results) - len(successful)
-    
-    print("=" * 60)
-    print("📊 LOAD TEST RESULTS")
-    print("=" * 60)
+
+    successful = [r for r in results if r.get("status") == 200 and "error" not in r]
+    shed = [r for r in results if r.get("status") == 503]
+    failed = [r for r in results if "error" in r]
+
+    print(f"\n{'='*70}")
+    print(f"📊 OVERALL RESULTS")
+    print(f"{'='*70}")
     print(f"Total Requests:     {len(results)}")
-    print(f"Successful:         {len(successful)} ({len(successful)/len(results)*100:.1f}%)")
-    print(f"Failed:             {failed}")
+    print(f"Successful (2xx):   {len(successful)} ({len(successful)/len(results)*100:.1f}%)")
+    print(f"Shed (503):         {len(shed)} ({len(shed)/len(results)*100:.1f}%)")
+    print(f"Failed (error):     {len(failed)}")
     print(f"Test Duration:      {test_duration:.2f}s")
-    print(f"Requests/sec:       {len(results)/test_duration:.2f}")
-    
+    print(f"Throughput:         {len(results)/test_duration:.2f} req/s")
+    if successful:
+        print(f"Effective rate:     {len(successful)/test_duration:.2f} successful req/s")
+
     if successful:
         latencies = [r["latency"] for r in successful]
         tokens = [r["total_tokens"] for r in successful]
-        tokens_per_sec = [
-            r["total_tokens"] / r["latency"] 
-            for r in successful if r["latency"] > 0
-        ]
-        
-        print(f"\n{'LATENCY METRICS':-^60}")
-        print(f"P50 (median):       {statistics.quantiles(latencies, n=100)[49]:.3f}s")
-        print(f"P95:                {statistics.quantiles(latencies, n=100)[94]:.3f}s")
-        print(f"P99:                {statistics.quantiles(latencies, n=100)[98]:.3f}s")
-        print(f"Average:            {statistics.mean(latencies):.3f}s")
-        print(f"Min:                {min(latencies):.3f}s")
-        print(f"Max:                {max(latencies):.3f}s")
-        
-        print(f"\n{'TOKEN METRICS':-^60}")
-        print(f"Total tokens:       {sum(tokens):,}")
-        print(f"Avg tokens/request: {statistics.mean(tokens):.1f}")
-        print(f"Avg tokens/sec:     {statistics.mean(tokens_per_sec):.2f}")
-        
-        print("\n💡 Now check your Grafana dashboard to see these metrics!")
-        print("   The spikes in P95/P99 show the effect of concurrent requests")
+        tokens_per_sec = [r["total_tokens"] / r["latency"] for r in successful if r["latency"] > 0]
+
+        print(f"\n{'─'*70}")
+        print(f"⏱️  LATENCY (successful only)")
+        print(f"{'─'*70}")
+        print(f"P50:     {statistics.quantiles(latencies, n=100)[49]:.3f}s")
+        print(f"P95:     {statistics.quantiles(latencies, n=100)[94]:.3f}s")
+        print(f"P99:     {statistics.quantiles(latencies, n=100)[98]:.3f}s")
+        print(f"Avg:     {statistics.mean(latencies):.3f}s")
+        print(f"Min:     {min(latencies):.3f}s")
+        print(f"Max:     {max(latencies):.3f}s")
+
+        print(f"\n{'─'*70}")
+        print(f"🔤 TOKENS")
+        print(f"{'─'*70}")
+        print(f"Total:           {sum(tokens):,}")
+        print(f"Avg/request:     {statistics.mean(tokens):.1f}")
+        print(f"Avg tok/s:       {statistics.mean(tokens_per_sec):.2f}")
+        print(f"Total tok/s:     {sum(tokens)/test_duration:.1f}")
+
+        pod_counts = Counter(r["pod"] for r in successful)
+        pod_tokens = {}
+        pod_latencies = {}
+        for r in successful:
+            pod = r["pod"]
+            pod_tokens.setdefault(pod, []).append(r["total_tokens"])
+            pod_latencies.setdefault(pod, []).append(r["latency"])
+
+        print(f"\n{'─'*70}")
+        print(f"🖥️  PER-POD DISTRIBUTION (successful requests)")
+        print(f"{'─'*70}")
+        print(f"{'Pod IP':<20} {'Requests':>10} {'%':>8} {'Tokens':>10} {'Avg Latency':>12}")
+        print(f"{'─'*20} {'─'*10} {'─'*8} {'─'*10} {'─'*12}")
+        for pod, count in pod_counts.most_common():
+            pct = count / len(successful) * 100
+            tok = sum(pod_tokens[pod])
+            avg_lat = statistics.mean(pod_latencies[pod])
+            print(f"{pod:<20} {count:>10} {pct:>7.1f}% {tok:>10,} {avg_lat:>11.2f}s")
+
+    # ── Tier breakdown ──
+    all_tier_counts = Counter()
+    for r in successful:
+        all_tier_counts[r["tier"]] += 1
+    all_tier_counts["red-shed"] = len(shed)
+
+    print(f"\n{'─'*70}")
+    print(f"🚦 TIER BREAKDOWN (all requests)")
+    print(f"{'─'*70}")
+    tier_colors = {"green": "🟢", "yellow": "🟡", "red": "🔴", "red-shed": "🛑"}
+    for tier, count in all_tier_counts.most_common():
+        pct = count / len(results) * 100
+        icon = tier_colors.get(tier, "⚪")
+        print(f"  {icon} {tier.upper():<12} {count:>6} ({pct:.1f}%)")
+
+    yellow_reqs = [r for r in successful if r["tier"] == "yellow"]
+    if yellow_reqs:
+        print(f"\n  YELLOW details:")
+        print(f"    Count:              {len(yellow_reqs)}")
+        print(f"    Avg max_tokens:     {statistics.mean(r['max_tokens_used'] for r in yellow_reqs):.0f} (clamped from 512)")
+        print(f"    Avg latency:        {statistics.mean(r['latency'] for r in yellow_reqs):.2f}s")
+
+    if shed:
+        print(f"\n{'─'*70}")
+        print(f"🛑 SHED DETAILS")
+        print(f"{'─'*70}")
+        print(f"  Total shed:           {len(shed)}")
+        shed_latencies = [r["latency"] for r in shed]
+        print(f"  Avg shed latency:     {statistics.mean(shed_latencies):.3f}s")
+        print(f"  Min shed latency:     {min(shed_latencies):.3f}s")
+        print(f"  (Fast 503 = router rejecting quickly, not waiting)")
+
+    if failed:
+        print(f"\n{'─'*70}")
+        print(f"❌ FAILURES")
+        print(f"{'─'*70}")
+        error_counts = Counter(r.get("error", "unknown")[:80] for r in failed)
+        for err, count in error_counts.most_common(5):
+            print(f"  [{count}x] {err}")
+
+    print(f"\n{'='*70}")
+    print(f"💡 Check Grafana: Adaptive Inference Router v2 dashboard")
+    print(f"{'='*70}\n")
+
 
 if __name__ == "__main__":
-    # Test configurations - start small, then increase
-    
-    # Light load
-    # asyncio.run(run_load_test(num_requests=20, concurrency=5))
-    
-    # Medium load (good for demo)
-    #asyncio.run(run_load_test(num_requests=50, concurrency=10))
-    
-    # Heavy load (watch your metrics spike!)
-     asyncio.run(run_load_test(num_requests=100, concurrency=20))
+    preset = sys.argv[1] if len(sys.argv) > 1 else "medium"
+    if preset not in PRESETS:
+        print(f"Unknown preset: {preset}")
+        print(f"Available: {', '.join(PRESETS.keys())}")
+        sys.exit(1)
+    cfg = PRESETS[preset]
+    asyncio.run(run_load_test(**cfg))

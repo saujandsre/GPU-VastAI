@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: router
+  namespace: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: router
+  template:
+    metadata:
+      labels:
+        app: router
+    spec:
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: router
+          image: saujandsre/model-router:v1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: REDIS_HOST
+              value: "redis-svc"
+            - name: REDIS_PORT
+              value: "6379"
+          volumeMounts:
+            - name: backend-config
+              mountPath: /config
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: backend-config
+          configMap:
+            name: fake-metrics
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: router-svc
+  namespace: staging
+spec:
+  selector:
+    app: router
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

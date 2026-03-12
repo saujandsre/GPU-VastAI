@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: inference-router
+  namespace: default
+  labels:
+    release: prometheus    # matches your kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      prometheus: enabled  # matches the Service label
+  namespaceSelector:
+    matchNames:
+      - default
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 10s

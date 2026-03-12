@@ -4,27 +4,58 @@
   <meta charset="UTF-8" />
   <title>vLLM Chat UI</title>
   <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  <style>
+    .routing-info {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #f9fafb;
+      font-size: 0.82rem;
+      display: none;
+    }
+    .routing-info.active { display: block; }
+
+    .tier-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .tier-green  { background: #dcfce7; color: #166534; }
+    .tier-yellow { background: #fef9c3; color: #854d0e; }
+    .tier-red    { background: #fee2e2; color: #991b1b; }
+
+    .routing-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px 16px;
+      margin-top: 6px;
+    }
+    .routing-item {
+      display: flex;
+      justify-content: space-between;
+    }
+    .routing-label { color: var(--text-muted); }
+    .routing-value { font-variant-numeric: tabular-nums; font-weight: 500; }
+  </style>
 </head>
 <body>
   <div class="app-shell">
     <header class="app-header">
       <div>
-	      <h1>vLLM Chat - {{ model_id }}</h1>
-       </div>
+        <h1>vLLM Chat - {{ model_id }}</h1>
+      </div>
     </header>
 
     <main class="app-main">
-      <!-- Left: Prompt -->
       <section class="panel">
         <h2 class="panel-title">Prompt</h2>
-
         <form id="chat-form" class="prompt-form">
-          <textarea
-            id="prompt"
-            placeholder="Ask the model anything…"
-            rows="6"
-          ></textarea>
-
+          <textarea id="prompt" placeholder="Ask the model anything…" rows="6"></textarea>
           <div class="form-footer">
             <button id="send-btn" type="submit">Send</button>
             <span id="status" class="status-text"></span>
@@ -32,16 +63,44 @@
         </form>
       </section>
 
-      <!-- Right: Response + metrics -->
       <section class="panel">
         <h2 class="panel-title">Response</h2>
 
         <div class="response-box">
-          <div id="response-placeholder" class="placeholder">
-            The model’s reply will appear here.
-          </div>
+          <div id="response-placeholder" class="placeholder">The model's reply will appear here.</div>
           <div id="response" class="response-text" style="display:none;"></div>
           <div id="error" class="error-text" style="display:none;"></div>
+        </div>
+
+        <!-- Routing Info -->
+        <div id="routing-info" class="routing-info">
+          <span id="tier-badge" class="tier-badge"></span>
+          <div class="routing-grid">
+            <div class="routing-item">
+              <span class="routing-label">Served by pod</span>
+              <span id="route-pod" class="routing-value">–</span>
+            </div>
+            <div class="routing-item">
+              <span class="routing-label">Max tokens</span>
+              <span id="route-tokens" class="routing-value">–</span>
+            </div>
+            <div class="routing-item">
+              <span class="routing-label">Queue depth</span>
+              <span id="route-queue" class="routing-value">–</span>
+            </div>
+            <div class="routing-item">
+              <span class="routing-label">KV Cache %</span>
+              <span id="route-cache" class="routing-value">–</span>
+            </div>
+            <div class="routing-item">
+              <span class="routing-label">Load score</span>
+              <span id="route-score" class="routing-value">–</span>
+            </div>
+            <div class="routing-item">
+              <span class="routing-label">Backend</span>
+              <span id="route-backend" class="routing-value">–</span>
+            </div>
+          </div>
         </div>
 
         <div class="metrics">
@@ -49,9 +108,7 @@
           <div class="metrics-grid">
             <div class="metric">
               <span class="metric-label">Latency</span>
-              <span class="metric-value">
-                <span id="latency">–</span> s
-              </span>
+              <span class="metric-value"><span id="latency">–</span> s</span>
             </div>
             <div class="metric">
               <span class="metric-label">Prompt tokens</span>
@@ -71,7 +128,7 @@
     </main>
 
     <footer class="app-footer">
-      vLLM demo • single-turn chat • latency + token usage
+      vLLM demo • adaptive inference router v2 • pod-aware routing
     </footer>
   </div>
 
@@ -81,42 +138,62 @@
       const promptEl = document.getElementById("prompt");
       const sendBtn = document.getElementById("send-btn");
       const statusEl = document.getElementById("status");
-
       const responseEl = document.getElementById("response");
       const placeholderEl = document.getElementById("response-placeholder");
       const errorEl = document.getElementById("error");
-
       const latencyEl = document.getElementById("latency");
       const promptTokensEl = document.getElementById("prompt_tokens");
       const completionTokensEl = document.getElementById("completion_tokens");
       const totalTokensEl = document.getElementById("total_tokens");
+      const routingInfo = document.getElementById("routing-info");
+      const tierBadge = document.getElementById("tier-badge");
+      const routePod = document.getElementById("route-pod");
+      const routeTokens = document.getElementById("route-tokens");
+      const routeQueue = document.getElementById("route-queue");
+      const routeCache = document.getElementById("route-cache");
+      const routeScore = document.getElementById("route-score");
+      const routeBackend = document.getElementById("route-backend");
+
+      function showRouting(r) {
+        if (!r || !r.tier) return;
+        routingInfo.classList.add("active");
+        const tier = r.tier.toLowerCase();
+        tierBadge.textContent = tier.toUpperCase();
+        tierBadge.className = "tier-badge tier-" + tier;
+        routePod.textContent = r.pod || "–";
+        routeTokens.textContent = r.max_tokens_used || "–";
+        routeQueue.textContent = r.queue_depth ?? "–";
+        routeCache.textContent = r.cache_pct != null ? (r.cache_pct * 100).toFixed(1) + "%" : "–";
+        routeScore.textContent = r.load_score ?? "–";
+        routeBackend.textContent = r.backend || "–";
+      }
 
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
-
         const prompt = promptEl.value.trim();
-        if (!prompt) {
-          return;
-        }
-
-        // Reset UI state
+        if (!prompt) return;
         errorEl.style.display = "none";
-        errorEl.textContent = "";
         statusEl.textContent = "Sending…";
         sendBtn.disabled = true;
+        routingInfo.classList.remove("active");
 
         try {
           const res = await fetch("/api/generate", {
             method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({ prompt }),
           });
-
           const data = await res.json();
 
-          if (!res.ok) {
+          if (res.status === 503) {
+            placeholderEl.style.display = "none";
+            responseEl.style.display = "none";
+            errorEl.style.display = "block";
+            errorEl.textContent = "⛔ " + (data.error || "System busy") +
+              " (retry in " + (data.retry_after_seconds || 5) + "s)";
+            showRouting({ tier: "red", pod: data.pod || "–" });
+            latencyEl.textContent = data.latency_ms != null ? (data.latency_ms / 1000).toFixed(2) : "–";
+          } else if (!res.ok) {
             placeholderEl.style.display = "none";
             responseEl.style.display = "none";
             errorEl.style.display = "block";
@@ -126,18 +203,12 @@
             errorEl.style.display = "none";
             responseEl.style.display = "block";
             responseEl.textContent = data.response || "";
-
-            const latencyMs = data.latency_ms ?? null;
-            latencyEl.textContent =
-              latencyMs != null ? (latencyMs / 1000).toFixed(2) : "–";
-
-            const usage = data.usage || {};
-            promptTokensEl.textContent =
-              usage.prompt_tokens != null ? usage.prompt_tokens : "–";
-            completionTokensEl.textContent =
-              usage.completion_tokens != null ? usage.completion_tokens : "–";
-            totalTokensEl.textContent =
-              usage.total_tokens != null ? usage.total_tokens : "–";
+            latencyEl.textContent = data.latency_ms != null ? (data.latency_ms / 1000).toFixed(2) : "–";
+            const u = data.usage || {};
+            promptTokensEl.textContent = u.prompt_tokens ?? "–";
+            completionTokensEl.textContent = u.completion_tokens ?? "–";
+            totalTokensEl.textContent = u.total_tokens ?? "–";
+            showRouting(data.routing);
           }
         } catch (err) {
           placeholderEl.style.display = "none";
@@ -153,4 +224,3 @@
   </script>
 </body>
 </html>
-

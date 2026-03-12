@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fake-metrics
+  namespace: staging
+data:
+  backends.json: |
+    {
+      "vllm-1": {
+        "status": "green",
+        "gpu_util": 35,
+        "queue_depth": 2,
+        "kv_cache_usage": 0.40,
+        "active_requests": 3
+      },
+      "vllm-2": {
+        "status": "yellow",
+        "gpu_util": 72,
+        "queue_depth": 12,
+        "kv_cache_usage": 0.78,
+        "active_requests": 15
+      }
+    }

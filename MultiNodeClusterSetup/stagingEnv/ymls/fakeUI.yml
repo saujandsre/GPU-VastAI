@@ -1,0 +1,18 @@
+# Fake UI pod — exec in and curl the router
+# kubectl exec -it fake-ui -n staging -- sh
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fake-ui
+  namespace: staging
+  labels:
+    app: fake-ui
+spec:
+  tolerations:
+  - key: "node-role.kubernetes.io/control-plane"
+    operator: "Exists"
+    effect: "NoSchedule"
+  containers:
+    - name: curl
+      image: curlimages/curl:latest
+      command: ["sleep", "infinity"]

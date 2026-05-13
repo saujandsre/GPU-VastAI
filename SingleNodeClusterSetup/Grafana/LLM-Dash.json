@@ -40,15 +40,15 @@
               },
               {
                 "color": "yellow",
-                "value": 60
+                "value": 1
               },
               {
                 "color": "red",
-                "value": 90
+                "value": 5
               }
             ]
           },
-          "unit": "percent"
+          "unit": "reqps"
         },
         "overrides": []
       },
@@ -76,12 +76,12 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "avg(DCGM_FI_DEV_GPU_UTIL{Hostname=~\"$hostname\"})",
-          "legendFormat": "util %",
+          "expr": "sum(rate(ui_http_requests_total[1m]))",
+          "legendFormat": "req/s",
           "refId": "A"
         }
       ],
-      "title": "GPU Utilization",
+      "title": "Request Rate",
       "type": "stat"
     },
     {
@@ -103,15 +103,15 @@
               },
               {
                 "color": "yellow",
-                "value": 70
+                "value": 0.05
               },
               {
                 "color": "red",
-                "value": 85
+                "value": 0.15
               }
             ]
           },
-          "unit": "celsius"
+          "unit": "percentunit"
         },
         "overrides": []
       },
@@ -124,7 +124,7 @@
       "id": 2,
       "options": {
         "colorMode": "background",
-        "graphMode": "area",
+        "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -139,12 +139,12 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "avg(DCGM_FI_DEV_GPU_TEMP{Hostname=~\"$hostname\"})",
-          "legendFormat": "temp",
+          "expr": "sum(rate(ui_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(ui_http_requests_total[5m]))",
+          "legendFormat": "error %",
           "refId": "A"
         }
       ],
-      "title": "GPU Temperature",
+      "title": "Error Rate (5xx)",
       "type": "stat"
     },
     {
@@ -166,15 +166,15 @@
               },
               {
                 "color": "yellow",
-                "value": 8000
+                "value": 50
               },
               {
                 "color": "red",
-                "value": 11000
+                "value": 100
               }
             ]
           },
-          "unit": "decmbytes"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -202,12 +202,12 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "sum(DCGM_FI_DEV_FB_USED{Hostname=~\"$hostname\"})",
-          "legendFormat": "used",
+          "expr": "sum(rate(ui_tokens_out_total[1m])) + sum(rate(ui_tokens_in_total[1m]))",
+          "legendFormat": "tok/s",
           "refId": "A"
         }
       ],
-      "title": "VRAM Used",
+      "title": "Total Tokens/sec",
       "type": "stat"
     },
     {
@@ -229,15 +229,11 @@
               },
               {
                 "color": "orange",
-                "value": 2000
-              },
-              {
-                "color": "red",
-                "value": 500
+                "value": 100000
               }
             ]
           },
-          "unit": "decmbytes"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -250,7 +246,7 @@
       "id": 4,
       "options": {
         "colorMode": "value",
-        "graphMode": "area",
+        "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -265,13 +261,115 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "sum(DCGM_FI_DEV_FB_FREE{Hostname=~\"$hostname\"})",
-          "legendFormat": "free",
+          "expr": "sum(ui_tokens_in_total) + sum(ui_tokens_out_total)",
+          "legendFormat": "total",
           "refId": "A"
         }
       ],
-      "title": "VRAM Free",
+      "title": "Total Tokens (cumulative)",
       "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(ui_http_request_latency_seconds_bucket{path=\"/api/generate\"}[5m])) by (le))",
+          "legendFormat": "P50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ui_http_request_latency_seconds_bucket{path=\"/api/generate\"}[5m])) by (le))",
+          "legendFormat": "P95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(ui_http_request_latency_seconds_bucket{path=\"/api/generate\"}[5m])) by (le))",
+          "legendFormat": "P99",
+          "refId": "C"
+        }
+      ],
+      "title": "Request Latency (P50 / P95 / P99)",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -327,111 +425,34 @@
               }
             ]
           },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 4
-      },
-      "id": 5,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "expr": "DCGM_FI_DEV_GPU_UTIL{Hostname=~\"$hostname\"}",
-          "legendFormat": "{{Hostname}}",
-          "refId": "A"
-        }
-      ],
-      "title": "GPU Utilization",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "celsius"
+          "unit": "short"
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "vast-worker-1"
+              "options": "Prompt tokens/s"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "orange",
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Completion tokens/s"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
                   "mode": "fixed"
                 }
               }
@@ -465,12 +486,17 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "DCGM_FI_DEV_GPU_TEMP{Hostname=~\"$hostname\"}",
-          "legendFormat": "{{Hostname}}",
+          "expr": "sum(rate(ui_tokens_in_total[1m]))",
+          "legendFormat": "Prompt tokens/s",
           "refId": "A"
+        },
+        {
+          "expr": "sum(rate(ui_tokens_out_total[1m]))",
+          "legendFormat": "Completion tokens/s",
+          "refId": "B"
         }
       ],
-      "title": "GPU Temperature",
+      "title": "Token Throughput",
       "type": "timeseries"
     },
     {
@@ -491,16 +517,16 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "scheme",
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
             "insertNulls": false,
-            "lineInterpolation": "smooth",
+            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
@@ -511,7 +537,7 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "none"
+              "mode": "normal"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -527,9 +553,40 @@
               }
             ]
           },
-          "unit": "decmbytes"
+          "unit": "reqps"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "2xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -557,12 +614,17 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "DCGM_FI_DEV_FB_USED{Hostname=~\"$hostname\"}",
-          "legendFormat": "{{Hostname}}",
+          "expr": "sum(rate(ui_http_requests_total{status=~\"2..\"}[1m]))",
+          "legendFormat": "2xx",
           "refId": "A"
+        },
+        {
+          "expr": "sum(rate(ui_http_requests_total{status=~\"5..\"}[1m]))",
+          "legendFormat": "5xx",
+          "refId": "B"
         }
       ],
-      "title": "VRAM Used",
+      "title": "Request Rate by Status",
       "type": "timeseries"
     },
     {
@@ -619,7 +681,7 @@
               }
             ]
           },
-          "unit": "decmbytes"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -649,12 +711,17 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "DCGM_FI_DEV_FB_FREE{Hostname=~\"$hostname\"}",
-          "legendFormat": "{{Hostname}}",
+          "expr": "sum(increase(ui_tokens_in_total[5m]))",
+          "legendFormat": "Prompt tokens (5m)",
           "refId": "A"
+        },
+        {
+          "expr": "sum(increase(ui_tokens_out_total[5m]))",
+          "legendFormat": "Completion tokens (5m)",
+          "refId": "B"
         }
       ],
-      "title": "VRAM Free",
+      "title": "Token Volume (5m rolling)",
       "type": "timeseries"
     },
     {
@@ -676,7 +743,7 @@
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "fillOpacity": 10,
+            "fillOpacity": 5,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -711,9 +778,55 @@
               }
             ]
           },
-          "unit": "hertz"
+          "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Prompt (input)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Completion (output)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -741,12 +854,22 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "DCGM_FI_DEV_SM_CLOCK{Hostname=~\"$hostname\"}",
-          "legendFormat": "{{Hostname}}",
+          "expr": "sum(ui_tokens_in_total) + sum(ui_tokens_out_total)",
+          "legendFormat": "Total",
           "refId": "A"
+        },
+        {
+          "expr": "sum(ui_tokens_in_total)",
+          "legendFormat": "Prompt (input)",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(ui_tokens_out_total)",
+          "legendFormat": "Completion (output)",
+          "refId": "C"
         }
       ],
-      "title": "SM Clock Frequency",
+      "title": "Cumulative Tokens",
       "type": "timeseries"
     },
     {
@@ -767,8 +890,8 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 10,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -776,7 +899,7 @@
               "viz": false
             },
             "insertNulls": false,
-            "lineInterpolation": "smooth",
+            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
@@ -787,7 +910,7 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "none"
+              "mode": "normal"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -803,19 +926,49 @@
               }
             ]
           },
-          "unit": "watt"
+          "unit": "short"
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "vast-worker-1"
+              "options": "Total tok/s"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "purple",
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Input tok/s"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Output tok/s"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
                   "mode": "fixed"
                 }
               }
@@ -849,51 +1002,34 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "DCGM_FI_DEV_POWER_USAGE{Hostname=~\"$hostname\"}",
-          "legendFormat": "{{Hostname}}",
+          "expr": "sum(rate(ui_tokens_in_total[1m])) + sum(rate(ui_tokens_out_total[1m]))",
+          "legendFormat": "Total tok/s",
           "refId": "A"
+        },
+        {
+          "expr": "sum(rate(ui_tokens_in_total[1m]))",
+          "legendFormat": "Input tok/s",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(ui_tokens_out_total[1m]))",
+          "legendFormat": "Output tok/s",
+          "refId": "C"
         }
       ],
-      "title": "Power Usage",
+      "title": "Token Rate Breakdown",
       "type": "timeseries"
     }
   ],
   "preload": false,
   "schemaVersion": 42,
   "tags": [
-    "gpu",
-    "dcgm",
-    "nvidia"
+    "llm",
+    "vllm",
+    "inference"
   ],
   "templating": {
-    "list": [
-      {
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "definition": "label_values(DCGM_FI_DEV_GPU_UTIL, Hostname)",
-        "hide": 0,
-        "includeAll": true,
-        "multi": true,
-        "name": "hostname",
-        "options": [],
-        "query": {
-          "qryType": 1,
-          "query": "label_values(DCGM_FI_DEV_GPU_UTIL, Hostname)"
-        },
-        "refresh": 2,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 1,
-        "type": "query"
-      }
-    ]
+    "list": []
   },
   "time": {
     "from": "now-30m",
@@ -901,7 +1037,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "GPU-Dash",
-  "uid": "gpu-dash-01",
+  "title": "LLM-Dash",
+  "uid": "llm-dash-01",
   "version": 1
 }

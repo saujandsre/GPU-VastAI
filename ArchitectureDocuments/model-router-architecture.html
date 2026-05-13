@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Model Router — Architecture & Scoring</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --surface-2: #1a2234;
+    --border: #2a3548;
+    --green: #22c55e;
+    --green-dim: rgba(34,197,94,0.15);
+    --yellow: #eab308;
+    --yellow-dim: rgba(234,179,8,0.15);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.15);
+    --blue: #3b82f6;
+    --blue-dim: rgba(59,130,246,0.12);
+    --purple: #a855f7;
+    --purple-dim: rgba(168,85,247,0.12);
+    --cyan: #06b6d4;
+    --text: #e2e8f0;
+    --text-muted: #64748b;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .header h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--green), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .header .ns-badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 12px;
+    color: var(--cyan);
+  }
+
+  /* Architecture Diagram */
+  .arch-section { margin-bottom: 56px; }
+  .section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    padding-left: 4px;
+  }
+
+  .diagram {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    padding: 32px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .diagram::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 30% 50%, rgba(34,197,94,0.04), transparent 60%),
+                radial-gradient(ellipse at 70% 50%, rgba(59,130,246,0.04), transparent 60%);
+    pointer-events: none;
+  }
+
+  /* K8s Objects */
+  .k8s-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .k8s-box {
+    border-radius: 12px;
+    padding: 16px 20px;
+    text-align: center;
+    min-width: 140px;
+    position: relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .k8s-box:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+
+  .k8s-box .kind {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    opacity: 0.6;
+    margin-bottom: 4px;
+  }
+  .k8s-box .name {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .k8s-box .detail {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    margin-top: 4px;
+    opacity: 0.7;
+  }
+
+  .box-pod {
+    background: var(--blue-dim);
+    border: 1.5px solid rgba(59,130,246,0.4);
+  }
+  .box-svc {
+    background: var(--purple-dim);
+    border: 1.5px solid rgba(168,85,247,0.4);
+  }
+  .box-redis {
+    background: var(--red-dim);
+    border: 1.5px solid rgba(239,68,68,0.35);
+  }
+  .box-cm {
+    background: var(--yellow-dim);
+    border: 1.5px dashed rgba(234,179,8,0.4);
+  }
+
+  /* Arrows */
+  .arrow-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 0 8px;
+    z-index: 1;
+  }
+  .arrow-line {
+    font-size: 1.6rem;
+    color: var(--text-muted);
+    line-height: 1;
+  }
+  .arrow-label {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    color: var(--cyan);
+    white-space: nowrap;
+    background: var(--surface);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* Flow description */
+  .flow-steps {
+    margin-top: 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .flow-step {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .step-num {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--green);
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--green-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .step-text {
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--text);
+  }
+  .step-text code {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    background: rgba(6,182,212,0.1);
+    color: var(--cyan);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* Scoring Section */
+  .scoring-section { margin-bottom: 48px; }
+
+  .scoring-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    overflow: hidden;
+  }
+
+  .formula-block {
+    background: var(--surface-2);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    line-height: 2;
+    border-left: 3px solid var(--green);
+  }
+  .formula-block .label { color: var(--text-muted); }
+  .formula-block .op { color: var(--yellow); }
+  .formula-block .val { color: var(--green); }
+  .formula-block .comment { color: var(--text-muted); font-size: 0.75rem; }
+
+  /* Weight bars */
+  .weights {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .weight-row {
+    display: grid;
+    grid-template-columns: 130px 1fr 60px;
+    align-items: center;
+    gap: 12px;
+  }
+  .weight-name {
+    font-weight: 600;
+    font-size: 0.88rem;
+  }
+  .weight-bar-bg {
+    height: 28px;
+    background: var(--surface-2);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+  .weight-bar {
+    height: 100%;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    padding-left: 10px;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    transition: width 0.8s ease;
+  }
+  .weight-max {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  .bar-status { background: linear-gradient(90deg, rgba(239,68,68,0.7), rgba(239,68,68,0.4)); }
+  .bar-kv { background: linear-gradient(90deg, rgba(234,179,8,0.7), rgba(234,179,8,0.4)); }
+  .bar-queue { background: linear-gradient(90deg, rgba(59,130,246,0.7), rgba(59,130,246,0.4)); }
+  .bar-gpu { background: linear-gradient(90deg, rgba(34,197,94,0.7), rgba(34,197,94,0.4)); }
+
+  .weight-why {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    padding-left: 2px;
+  }
+
+  /* Example scenarios */
+  .scenarios {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    margin-top: 28px;
+  }
+  .scenario {
+    background: var(--surface-2);
+    border-radius: 12px;
+    padding: 18px 20px;
+    border: 1px solid var(--border);
+  }
+  .scenario-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .scenario-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .scenario-table {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    border-collapse: collapse;
+  }
+  .scenario-table th {
+    text-align: left;
+    color: var(--text-muted);
+    font-weight: 400;
+    padding: 4px 8px 4px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .scenario-table td {
+    padding: 6px 8px 6px 0;
+  }
+  .scenario-table .winner {
+    color: var(--green);
+    font-weight: 600;
+  }
+  .scenario-result {
+    margin-top: 10px;
+    font-size: 0.82rem;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--green-dim);
+    border: 1px solid rgba(34,197,94,0.25);
+  }
+  .scenario-result strong { color: var(--green); }
+
+  /* Fallback section */
+  .fallback-note {
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: var(--yellow-dim);
+    border: 1px solid rgba(234,179,8,0.3);
+    border-radius: 10px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text);
+  }
+  .fallback-note strong { color: var(--yellow); }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .diagram { flex-direction: column; gap: 12px; padding: 24px 16px; }
+    .arrow-group { transform: rotate(90deg); padding: 4px 0; }
+    .header h1 { font-size: 1.6rem; }
+    .weight-row { grid-template-columns: 100px 1fr 50px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Adaptive Model Router</h1>
+    <span class="ns-badge">namespace: staging</span>
+  </div>
+
+  <!-- Architecture Diagram -->
+  <div class="arch-section">
+    <div class="section-title">Architecture — K8s Object Map</div>
+    <div class="diagram">
+
+      <!-- Fake UI -->
+      <div class="k8s-group">
+        <div class="k8s-box box-pod">
+          <div class="kind">Pod</div>
+          <div class="name">fake-ui</div>
+          <div class="detail">curl client</div>
+        </div>
+      </div>
+
+      <div class="arrow-group">
+        <div class="arrow-label">curl :8080</div>
+        <div class="arrow-line">→</div>
+      </div>
+
+      <!-- Router SVC -->
+      <div class="k8s-group">
+        <div class="k8s-box box-svc">
+          <div class="kind">Service</div>
+          <div class="name">router-svc</div>
+          <div class="detail">:8080 → Pod</div>
+        </div>
+        <div class="k8s-box box-pod">
+          <div class="kind">Pod</div>
+          <div class="name">router</div>
+          <div class="detail">FastAPI v2</div>
+        </div>
+      </div>
+
+      <div class="arrow-group">
+        <div class="arrow-label">reads backend:*</div>
+        <div class="arrow-line">→</div>
+      </div>
+
+      <!-- Redis -->
+      <div class="k8s-group">
+        <div class="k8s-box box-svc">
+          <div class="kind">Service</div>
+          <div class="name">redis-svc</div>
+          <div class="detail">:6379 → Pod</div>
+        </div>
+        <div class="k8s-box box-redis">
+          <div class="kind">Pod</div>
+          <div class="name">redis</div>
+          <div class="detail">7-alpine</div>
+        </div>
+      </div>
+
+      <!-- ConfigMap fallback -->
+      <div class="arrow-group">
+        <div class="arrow-label" style="color: var(--yellow);">fallback</div>
+        <div class="arrow-line" style="color: var(--yellow);">⇠</div>
+      </div>
+
+      <div class="k8s-group">
+        <div class="k8s-box box-cm">
+          <div class="kind">ConfigMap</div>
+          <div class="name">fake-metrics</div>
+          <div class="detail">backends.json</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Flow Steps -->
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <code>fake-ui</code> sends <code>curl</code> to <code>router-svc:8080/route</code>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          Service routes to <code>router</code> pod (FastAPI)
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          Router queries Redis for <code>backend:*</code> keys — each key holds JSON metrics
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">4</div>
+        <div class="step-text">
+          If Redis is down, reads <code>/config/backends.json</code> from ConfigMap volume
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">5</div>
+        <div class="step-text">
+          Scores each backend, picks the lowest score, returns the routing decision
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scoring Section -->
+  <div class="scoring-section">
+    <div class="section-title">Weighted Scoring — How /route Picks a Backend</div>
+    <div class="scoring-card">
+
+      <div class="formula-block">
+        <span class="label">score</span> <span class="op">=</span><br>
+        &nbsp;&nbsp;<span class="val">STATUS_WEIGHT</span> <span class="comment">&nbsp;# green=0, yellow=50, red=100</span><br>
+        &nbsp;&nbsp;<span class="op">+</span> kv_cache_usage <span class="op">×</span> <span class="val">40</span> <span class="comment">&nbsp;# 0.0→1.0 scaled to 0→40</span><br>
+        &nbsp;&nbsp;<span class="op">+</span> queue_depth <span class="op">×</span> <span class="val">3</span> <span class="comment">&nbsp;&nbsp;# each queued req adds 3 pts</span><br>
+        &nbsp;&nbsp;<span class="op">+</span> gpu_util <span class="op">×</span> <span class="val">0.1</span> <span class="comment">&nbsp;# 0→100 scaled to 0→10</span><br>
+        <br>
+        <span class="comment">lowest score wins → gets the next request</span>
+      </div>
+
+      <!-- Weight visualization -->
+      <div class="weights">
+        <div class="weight-row">
+          <span class="weight-name" style="color: var(--red)">Status</span>
+          <div class="weight-bar-bg">
+            <div class="weight-bar bar-status" style="width: 66%">red = 100 pts</div>
+          </div>
+          <span class="weight-max">0–100</span>
+        </div>
+        <div class="weight-row">
+          <span class="weight-name" style="color: var(--yellow)">KV Cache</span>
+          <div class="weight-bar-bg">
+            <div class="weight-bar bar-kv" style="width: 27%">× 40</div>
+          </div>
+          <span class="weight-max">0–40</span>
+        </div>
+        <div class="weight-row">
+          <span class="weight-name" style="color: var(--blue)">Queue Depth</span>
+          <div class="weight-bar-bg">
+            <div class="weight-bar bar-queue" style="width: 20%">× 3 each</div>
+          </div>
+          <span class="weight-max">0–30*</span>
+        </div>
+        <div class="weight-row">
+          <span class="weight-name" style="color: var(--green)">GPU Util</span>
+          <div class="weight-bar-bg">
+            <div class="weight-bar bar-gpu" style="width: 7%">× 0.1</div>
+          </div>
+          <span class="weight-max">0–10</span>
+        </div>
+      </div>
+
+      <div class="weight-why">
+        <strong>Why this order?</strong> Status is the hard gate — a red backend gets +100 points penalty, making it a last resort.
+        KV cache is the strongest continuous signal because when it fills up (>0.9), vLLM starts rejecting requests — you want to route away before that happens.
+        Queue depth directly affects latency for the next request. GPU utilization is the weakest signal because high util with low queue just means the GPU is working efficiently — that's fine.
+      </div>
+
+      <!-- Example Scenarios -->
+      <div class="scenarios">
+        <div class="scenario">
+          <div class="scenario-title">
+            <div class="scenario-dot" style="background: var(--green)"></div>
+            Scenario: Both Healthy
+          </div>
+          <table class="scenario-table">
+            <tr><th></th><th>status</th><th>kv</th><th>queue</th><th>gpu</th><th>score</th></tr>
+            <tr>
+              <td>vllm-1</td><td>green</td><td>0.25</td><td>1</td><td>30</td>
+              <td class="winner">16.0</td>
+            </tr>
+            <tr>
+              <td>vllm-2</td><td>green</td><td>0.55</td><td>3</td><td>45</td>
+              <td>35.5</td>
+            </tr>
+          </table>
+          <div class="scenario-result">→ Routes to <strong>vllm-1</strong> (lower KV + queue)</div>
+        </div>
+
+        <div class="scenario">
+          <div class="scenario-title">
+            <div class="scenario-dot" style="background: var(--yellow)"></div>
+            Scenario: One Degraded
+          </div>
+          <table class="scenario-table">
+            <tr><th></th><th>status</th><th>kv</th><th>queue</th><th>gpu</th><th>score</th></tr>
+            <tr>
+              <td>vllm-1</td><td>yellow</td><td>0.92</td><td>18</td><td>85</td>
+              <td>149.3</td>
+            </tr>
+            <tr>
+              <td>vllm-2</td><td>green</td><td>0.55</td><td>3</td><td>45</td>
+              <td class="winner">35.5</td>
+            </tr>
+          </table>
+          <div class="scenario-result">→ Routes to <strong>vllm-2</strong> (vllm-1 yellow + KV at 92%)</div>
+        </div>
+
+        <div class="scenario">
+          <div class="scenario-title">
+            <div class="scenario-dot" style="background: var(--red)"></div>
+            Scenario: Both Stressed
+          </div>
+          <table class="scenario-table">
+            <tr><th></th><th>status</th><th>kv</th><th>queue</th><th>gpu</th><th>score</th></tr>
+            <tr>
+              <td>vllm-1</td><td>red</td><td>0.98</td><td>25</td><td>95</td>
+              <td>223.7</td>
+            </tr>
+            <tr>
+              <td>vllm-2</td><td>yellow</td><td>0.65</td><td>10</td><td>70</td>
+              <td class="winner">113.0</td>
+            </tr>
+          </table>
+          <div class="scenario-result">→ Routes to <strong>vllm-2</strong> (red penalty dominates)</div>
+        </div>
+
+        <div class="scenario">
+          <div class="scenario-title">
+            <div class="scenario-dot" style="background: var(--cyan)"></div>
+            Scenario: Fresh Backend Added
+          </div>
+          <table class="scenario-table">
+            <tr><th></th><th>status</th><th>kv</th><th>queue</th><th>gpu</th><th>score</th></tr>
+            <tr>
+              <td>vllm-1</td><td>yellow</td><td>0.80</td><td>15</td><td>80</td>
+              <td>135.0</td>
+            </tr>
+            <tr>
+              <td>vllm-2</td><td>yellow</td><td>0.70</td><td>10</td><td>75</td>
+              <td>115.5</td>
+            </tr>
+            <tr>
+              <td>vllm-3</td><td>green</td><td>0.05</td><td>0</td><td>5</td>
+              <td class="winner">2.5</td>
+            </tr>
+          </table>
+          <div class="scenario-result">→ Routes to <strong>vllm-3</strong> (fresh = lowest score by far)</div>
+        </div>
+      </div>
+
+      <div class="fallback-note">
+        <strong>Graceful degradation:</strong> If Redis goes down, the router automatically falls back to reading
+        <code>backends.json</code> from the ConfigMap volume mount. No crash, no manual intervention.
+        Test with: <code>kubectl scale deploy/redis -n staging --replicas=0</code>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference-router
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inference-router
+  template:
+    metadata:
+      labels:
+        app: inference-router
+    spec:
+      serviceAccountName: inference-router
+      containers:
+        - name: router
+          image: saujandsre/inference-router:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 9090
+          env:
+            - name: VLLM_SERVICE
+              value: "vllm-api"
+            - name: VLLM_PORT
+              value: "8000"
+            - name: POLL_INTERVAL
+              value: "3"
+            - name: ENDPOINT_REFRESH_INTERVAL
+              value: "10"
+            # ── Lowered thresholds for demo ──
+            # GREEN → YELLOW when queue >= 2 OR cache >= 5%
+            - name: GREEN_QUEUE_MAX
+              value: "2"
+            - name: GREEN_CACHE_MAX
+              value: "0.05"
+            # YELLOW → RED when queue >= 5 OR cache >= 8%
+            - name: RED_QUEUE_MIN
+              value: "5"
+            - name: RED_CACHE_MIN
+              value: "0.08"
+            - name: RED_TPT_MIN
+              value: "0.100"
+            # Token caps per tier
+            - name: GREEN_MAX_TOKENS
+              value: "512"
+            - name: YELLOW_MAX_TOKENS
+              value: "128"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 20

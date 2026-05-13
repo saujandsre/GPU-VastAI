@@ -1,0 +1,401 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Current Tier",
+      "description": "Latest routing tier based on cached metrics",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "GREEN", "color": "green" } } },
+            { "type": "value", "options": { "1": { "text": "YELLOW", "color": "yellow" } } },
+            { "type": "value", "options": { "2": { "text": "RED", "color": "red" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 1.5 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "expr": "clamp_max(\n  (max(router_pod_cache_pct) >= bool 0.08) * 2 +\n  (max(router_pod_queue_depth) >= bool 5) * 2 +\n  (max(router_pod_cache_pct) >= bool 0.05) +\n  (max(router_pod_queue_depth) >= bool 2),\n  2)",
+          "legendFormat": "tier",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Poller Health",
+      "description": "1 = router is polling backends, 0 = poller stalled",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" } } },
+            { "type": "value", "options": { "1": { "text": "OK", "color": "green" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "value" },
+      "targets": [
+        { "expr": "router_poller_healthy", "legendFormat": "poller", "refId": "A" }
+      ]
+    },
+    {
+      "title": "Queue Depth (live)",
+      "description": "Max queue depth across all backends. Note: vLLM continuous batching keeps this near zero unless max_num_seqs is hit.",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "textMode": "value" },
+      "targets": [
+        { "expr": "max(router_pod_queue_depth)", "legendFormat": "queue", "refId": "A" }
+      ]
+    },
+    {
+      "title": "KV Cache % (live)",
+      "description": "Worst-case KV cache pressure across backends",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 8 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "textMode": "value" },
+      "targets": [
+        { "expr": "max(router_pod_cache_pct) * 100", "legendFormat": "cache", "refId": "A" }
+      ]
+    },
+    {
+      "title": "Pod Count",
+      "description": "Number of vLLM backends the router knows about",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "blue", "value": 1 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "textMode": "value" },
+      "targets": [
+        { "expr": "count(router_pod_cache_pct)", "legendFormat": "pods", "refId": "A" }
+      ]
+    },
+    {
+      "title": "Total Shed (503s)",
+      "description": "Cumulative requests rejected with 503 (RED tier)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "textMode": "value" },
+      "targets": [
+        { "expr": "router_requests_shed_total", "legendFormat": "shed", "refId": "A" }
+      ]
+    },
+    {
+      "title": "Total Degraded (YELLOW)",
+      "description": "Cumulative requests served with clamped max_tokens",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "textMode": "value" },
+      "targets": [
+        { "expr": "router_requests_degraded_total", "legendFormat": "degraded", "refId": "A" }
+      ]
+    },
+    {
+      "title": "Requests Served per Pod (cumulative)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 15, "lineInterpolation": "smooth", "showPoints": "never" }
+        }
+      },
+      "targets": [
+        { "expr": "router_pod_requests_total", "legendFormat": "pod {{exported_pod}}", "refId": "A" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "title": "Tokens Generated per Pod (cumulative)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 15, "lineInterpolation": "smooth", "showPoints": "never" }
+        }
+      },
+      "targets": [
+        { "expr": "router_pod_tokens_total", "legendFormat": "pod {{exported_pod}}", "refId": "A" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "title": "Request Rate per Pod (req/min)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 25, "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [
+        { "expr": "rate(router_pod_requests_total[1m]) * 60", "legendFormat": "pod {{exported_pod}}", "refId": "A" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "title": "Token Rate per Pod (tok/s)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 25, "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [
+        { "expr": "rate(router_pod_tokens_total[1m])", "legendFormat": "pod {{exported_pod}}", "refId": "A" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "title": "Running Requests per Pod",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20, "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [
+        { "expr": "router_pod_requests_running", "legendFormat": "pod {{exported_pod}}", "refId": "A" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "title": "KV Cache Usage per Pod (%)",
+      "description": "Auto-scaled. On Qwen2.5-3B / 12GB GPU, cache rarely exceeds 1% before requests are shed.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20, "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [
+        { "expr": "router_pod_cache_pct * 100", "legendFormat": "pod {{exported_pod}}", "refId": "A" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "title": "Queue Depth per Pod",
+      "description": "vLLM continuous batching keeps queue near zero unless max_num_seqs is hit. Set MAX_NUM_SEQS in vllm-config to force queueing behaviour.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20, "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [
+        { "expr": "router_pod_queue_depth", "legendFormat": "pod {{exported_pod}}", "refId": "A" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "title": "Request Latency by Tier (P50 / P95 / P99)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(router_request_latency_seconds_bucket[1m])) by (le, tier))", "legendFormat": "P50 {{tier}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(router_request_latency_seconds_bucket[1m])) by (le, tier))", "legendFormat": "P95 {{tier}}", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum(rate(router_request_latency_seconds_bucket[1m])) by (le, tier))", "legendFormat": "P99 {{tier}}", "refId": "C" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "title": "Requests by Tier (rate/min)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 35, "lineInterpolation": "smooth", "stacking": { "mode": "normal" } }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "green" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "yellow" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "red" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [
+        { "expr": "rate(router_requests_total{tier=\"green\"}[1m]) * 60", "legendFormat": "green", "refId": "A" },
+        { "expr": "rate(router_requests_degraded_total[1m]) * 60", "legendFormat": "yellow", "refId": "B" },
+        { "expr": "rate(router_requests_shed_total[1m]) * 60", "legendFormat": "red", "refId": "C" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "title": "Shed & Degraded Rate",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 60, "stacking": { "mode": "normal" } }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "shed (503)" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "degraded (yellow)" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [
+        { "expr": "rate(router_requests_shed_total[1m]) * 60", "legendFormat": "shed (503)", "refId": "A" },
+        { "expr": "rate(router_requests_degraded_total[1m]) * 60", "legendFormat": "degraded (yellow)", "refId": "B" }
+      ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "title": "Load Score per Pod",
+      "description": "Composite score: running + queue + (cache * 10). The router picks the lowest-scoring pod.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 3, "fillOpacity": 15, "lineInterpolation": "smooth" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        { "expr": "router_pod_requests_running + router_pod_queue_depth + (router_pod_cache_pct * 10)", "legendFormat": "pod {{exported_pod}}", "refId": "A" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    }
+  ],
+  "preload": false,
+  "schemaVersion": 42,
+  "tags": ["router", "vllm", "gpu", "inference"],
+  "templating": { "list": [] },
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Adaptive Inference Router v2",
+  "uid": "adaptive-router-v2",
+  "version": 2
+}

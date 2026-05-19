@@ -12,6 +12,8 @@ spec:
       labels:
         app: vllm
     spec:
+      nodeSelector:
+        node-role.kubernetes.io/worker: ""
       containers:
         - name: vllm
           image: saujandsre/vllm-generic:v1
@@ -29,5 +31,5 @@ spec:
       volumes:
         - name: hf-cache
           hostPath:
-            path: /var/lib/vllm-models   # created if missing
+            path: /var/lib/vllm-models
             type: DirectoryOrCreate

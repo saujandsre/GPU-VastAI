@@ -12,11 +12,19 @@ Architecture:
   1. Endpoint watcher: periodically resolves vllm-api Service → list of pod IPs
   2. Per-pod poller: polls each pod's /metrics every 3s
   3. Router: picks best pod based on real load, classifies tier, forwards
+
+v2.1 fixes (2026-05):
+  - Removed fallback that registered Service DNS as a fake pod (the "vllm-api ghost")
+  - Added IP validation before pod registration
+  - Renamed router_pod_requests_served_total → router_pod_requests_total
+    to match dashboard query
+  - Added Prometheus label series cleanup on pod removal (prevents stale series)
 """
 
 import os
 import re
 import time
+import ipaddress
 import asyncio
 import logging
 from typing import Optional
@@ -79,7 +87,6 @@ class PodMetrics:
     @property
     def load_score(self) -> float:
         """Lower is better. Combines queue, running requests, and cache pressure."""
-        # FIX 2: includes num_requests_running so a pod with 49 running scores 49, not 0
         return self.num_requests_waiting + self.num_requests_running + (self.gpu_cache_usage_perc * 10)
 
     @property
@@ -101,6 +108,38 @@ class PodMetrics:
 
 # Registry of known pods
 pod_registry: dict[str, PodMetrics] = {}  # ip -> PodMetrics
+
+
+# ─────────────────────────── Helpers ──────────────────────────
+
+def _is_valid_pod_ip(s: str) -> bool:
+    """
+    Refuse to register non-IP values as pods.
+    Previously the Service DNS name "vllm-api" leaked into pod_registry
+    via a discovery-failure fallback and persisted as a ghost pod.
+    """
+    try:
+        ipaddress.ip_address(s)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+def _remove_pod_metrics(ip: str):
+    """
+    Remove all per-pod Prometheus label series for a given IP.
+
+    Without this, label series persist in the prometheus_client registry
+    even after the pod entry is deleted from pod_registry. The result:
+    Grafana keeps showing stale series for pods that no longer exist
+    (e.g. Pod Count panel inflated, ghost lines in per-pod graphs).
+    """
+    for metric in PER_POD_METRICS:
+        try:
+            metric.remove(ip)
+        except KeyError:
+            # Label series doesn't exist — fine, nothing to clean up
+            pass
 
 
 # ─────────────────────────── Endpoint Discovery ───────────────
@@ -133,28 +172,42 @@ async def _discover_endpoints():
             for subset in data.get("subsets", []):
                 for addr in subset.get("addresses", []):
                     ip = addr["ip"]
+
+                    # Defense in depth: refuse to register anything that
+                    # doesn't parse as a valid IP address.
+                    if not _is_valid_pod_ip(ip):
+                        log.warning(f"Refusing to register non-IP as pod: {ip!r}")
+                        continue
+
                     current_ips.add(ip)
 
                     if ip not in pod_registry:
                         pod_registry[ip] = PodMetrics(ip)
                         log.info(f"Discovered new pod: {ip}")
 
-            # Remove pods that are no longer in endpoints
+            # Remove pods that are no longer in endpoints.
+            # Also clean up their Prometheus label series so Grafana
+            # doesn't keep showing them as ghost entries.
             stale_ips = set(pod_registry.keys()) - current_ips
             for ip in stale_ips:
                 del pod_registry[ip]
+                _remove_pod_metrics(ip)
                 log.info(f"Removed stale pod: {ip}")
 
             POD_COUNT.set(len(pod_registry))
 
         except Exception as e:
             log.warning(f"Endpoint discovery failed: {e}")
-            if not pod_registry:
-                fallback_ip = VLLM_SERVICE
-                if fallback_ip not in pod_registry:
-                    pod_registry[fallback_ip] = PodMetrics(fallback_ip)
-                    pod_registry[fallback_ip].url = f"http://{VLLM_SERVICE}:{VLLM_PORT}"
-                    log.info(f"Fallback: using service DNS {VLLM_SERVICE}")
+            # NOTE: Previously there was a fallback here that registered
+            # VLLM_SERVICE (the Service DNS name) as a fake pod when
+            # discovery failed and pod_registry was empty. That created the
+            # "vllm-api ghost" — a non-IP entry that survived all subsequent
+            # discovery cycles because the cleanup logic only removes IPs
+            # that aren't in current_ips, and a non-IP never matches.
+            # Better behaviour: just log the failure, retry on next cycle.
+            # Router will return 503 "No backends available" until discovery
+            # succeeds — which is correct, since we genuinely don't know
+            # about any pods yet.
 
         await asyncio.sleep(ENDPOINT_REFRESH_INTERVAL)
 
@@ -329,8 +382,24 @@ POD_CACHE_PCT = Gauge("router_pod_cache_pct", "KV cache % per pod", ["pod"])
 POD_TPT = Gauge("router_pod_tpt_seconds", "Time per token per pod", ["pod"])
 POD_RUNNING = Gauge("router_pod_requests_running", "Running requests per pod", ["pod"])
 POD_HEALTHY = Gauge("router_pod_healthy", "Pod health status", ["pod"])
-POD_SERVED = Counter("router_pod_requests_served_total", "Requests forwarded to pod", ["pod"])
+
+# Renamed from router_pod_requests_served_total to match the dashboard
+# query rate(router_pod_requests_total[1m]).
+POD_REQUESTS_TOTAL = Counter("router_pod_requests_total", "Requests forwarded to pod", ["pod"])
 POD_TOKENS = Counter("router_pod_tokens_total", "Tokens generated by pod", ["pod"])
+
+# All per-pod metric objects, used by _remove_pod_metrics() to clean up
+# label series when a pod disappears. Add new per-pod metrics here so
+# stale-series cleanup keeps working.
+PER_POD_METRICS = [
+    POD_QUEUE_DEPTH,
+    POD_CACHE_PCT,
+    POD_TPT,
+    POD_RUNNING,
+    POD_HEALTHY,
+    POD_REQUESTS_TOTAL,
+    POD_TOKENS,
+]
 
 # Aggregate metrics (for the top-row stat panels)
 BACKEND_QUEUE_DEPTH = Gauge("router_backend_queue_depth", "Max queue depth across pods")
@@ -461,7 +530,7 @@ async def proxy_chat_completions(request: Request):
 
         # Track per-pod stats
         pod.requests_served += 1
-        POD_SERVED.labels(pod=pod.ip).inc()
+        POD_REQUESTS_TOTAL.labels(pod=pod.ip).inc()
         total_tokens = data.get("usage", {}).get("total_tokens", 0)
         POD_TOKENS.labels(pod=pod.ip).inc(total_tokens)
 

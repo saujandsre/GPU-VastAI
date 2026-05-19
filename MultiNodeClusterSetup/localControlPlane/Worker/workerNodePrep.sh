@@ -40,6 +40,20 @@ if ! command -v tailscale &>/dev/null; then
     echo "✅ Tailscale installed"
 fi
 
+# === Tailscale direct-connection prep ===
+# Open UDP 41641 for direct WireGuard peer-to-peer. Without this, Tailscale
+# falls back to DERP relays which add 50-200ms latency and cause kubelet
+# lease timeouts on long-running connections.
+echo "🔧 Opening Tailscale UDP port for direct connection..."
+ufw allow 41641/udp 2>/dev/null || true
+iptables -A INPUT -p udp --dport 41641 -j ACCEPT 2>/dev/null || true
+# Make iptables rule survive reboots (Vast.ai containers usually don't reboot,
+# but harmless to add)
+iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+echo "✅ UDP 41641 open"
+
+
+
 # 5. Connect to Tailscale network
 if ! tailscale status &>/dev/null; then
     if [[ -n "${TS_AUTHKEY:-}" ]]; then
@@ -58,6 +72,36 @@ fi
 
 WORKER_TAILSCALE_IP=$(tailscale ip -4)
 echo "✅ Worker Tailscale IP: $WORKER_TAILSCALE_IP"
+
+# === Verify Tailscale is on direct path ===
+echo "🔍 Verifying Tailscale connection mode..."
+sleep 5  # give Tailscale a moment to establish
+
+# Get control plane's Tailscale IP from status output
+CONTROL_PLANE_TS_IP=$(tailscale status --json | jq -r '.Peer[] | select(.HostName != "'"$NEW_HOSTNAME"'") | .TailscaleIPs[0]' | head -1)
+
+if [[ -n "$CONTROL_PLANE_TS_IP" ]]; then
+    # Try a few pings, Tailscale upgrades from DERP to direct over the first ~10s
+    for i in 1 2 3 4 5; do
+        PING_RESULT=$(tailscale ping -c 1 "$CONTROL_PLANE_TS_IP" 2>&1 | head -1)
+        if echo "$PING_RESULT" | grep -q "via direct"; then
+            echo "✅ Direct connection established: $PING_RESULT"
+            break
+        fi
+        echo "   Attempt $i: $PING_RESULT"
+        sleep 2
+    done
+
+    # Final check
+    if tailscale ping -c 1 "$CONTROL_PLANE_TS_IP" 2>&1 | grep -q "via DERP"; then
+        echo ""
+        echo "⚠️  WARNING: Still using DERP relay (slow path)"
+        echo "   This will cause kubelet lease timeouts."
+        echo "   Likely cause: NAT traversal failed on one side."
+        echo "   Check: control plane router needs UDP 41641 forwarded to the Dell."
+        echo "   Continuing anyway, but expect instability."
+    fi
+fi
 
 # 6. Install and configure containerd properly
 echo "📦 Setting up containerd..."
